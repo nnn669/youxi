@@ -1145,7 +1145,7 @@
     }
 
     const state = {
-        cash: 1000000000, // 初始资金10万
+        cash: 100000, // 初始资金10万
         bankDeposit: 0,
         loanPrincipal: 0,
         loanAmount: 0,
@@ -1195,7 +1195,7 @@
         expandPercent: { entry: 10, pro: 10, main: 10, asic: 10 },
         // 新增：AI机器人
         aiBot: {
-            cash: 500000000, // AI初始资金1000万
+            cash: 10000000, // AI初始资金1000万
             portfolio: {}, // AI持仓
             lastTradeTime: 0, // 上次交易时间
             tradeInterval: 10000, // 交易间隔5秒
@@ -1553,7 +1553,7 @@
     function updateMining(deltaSeconds) {
         if (!state.mining.active) return;
         const totalHash = state.mining.totalHashrate;
-        const btcPerSecond = totalHash / 60000;
+        const btcPerSecond = totalHash / 30000;
         const btcMined = btcPerSecond * deltaSeconds;
         if (btcMined > 0) {
             if (!state.portfolio['BTC']) {
@@ -2264,7 +2264,7 @@
                     startPrice: coin.price / (1 + boostPercent),
                     targetPrice: coin.price,
                     endTime: now + 15000,  // 持续15秒
-                    message: `马斯克发推看好 ${coin.id}，市值瞬间拉升 ${(boostPercent*100).toFixed(1)}%！`
+                    message: `马斯克发推看好 ${coin.id}，市值瞬间拉升 ${(boostPercent*100).toFixed(3)}%！`
                 };
             }
         }
@@ -2755,7 +2755,7 @@
             const leverageSlider = document.createElement('input');
             leverageSlider.type = 'range';
             leverageSlider.min = '1';
-            leverageSlider.max = '500';
+            leverageSlider.max = '100';
             leverageSlider.value = state.leverageSliderValues[stockId];
             leverageSlider.dataset.stockId = stockId;
             leverageSlider.className = 'leverage-slider';
