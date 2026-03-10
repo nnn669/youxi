@@ -1,0 +1,2182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>金融模拟器 · 资产卡片版</title>
+    <style>
+        /* 全局样式重置和字体设置 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background: #f7f8fa;
+            padding-bottom: 80px; /* 为底部导航留出空间 */
+        }
+
+        /* 页面容器：每个页面默认隐藏，通过active类显示 */
+        .page {
+            display: none;
+            padding: 0;
+            min-height: calc(100vh - 80px);
+        }
+        .page.active {
+            display: block;
+        }
+
+        /* ---------- 交易页面样式 ---------- */
+        .trade-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            position: relative;
+        }
+
+        /* 顶部信息栏 */
+        .top-bar {
+            background: #ffffff;
+            padding: 12px 16px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .price-row {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .stock-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+        .current-price {
+            font-size: 18px;
+            font-weight: 700;
+        }
+        .up {
+            color: #00c48c; /* 上涨绿色 */
+        }
+        .down {
+            color: #ff5252; /* 下跌红色 */
+        }
+        .change {
+            font-size: 20px;
+            font-weight: 600;
+            margin-left: auto;
+        }
+
+        /* 2分钟K线切换按钮（圆形） */
+        .time-toggle {
+            position: absolute;
+            top: 70px;
+            right: 16px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #f0f0f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 600;
+            color: #333;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            z-index: 30;
+        }
+        .time-toggle.active {
+            background: #4285f4;
+            color: white;
+            border-color: #4285f4;
+        }
+
+        /* K线图表区域 */
+        .chart-area {
+            flex: 1;
+            background: #ffffff;
+            padding: 8px 4px 4px 4px;
+            min-height: 220px;
+            position: relative;
+        }
+        .price-chart {
+            height: 100%;
+            width: 100%;
+            position: relative;
+        }
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.85);
+            color: #fff;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 20;
+            display: none;
+            line-height: 1.5;
+            white-space: nowrap;
+        }
+
+        /* 交易区（按钮、输入等） */
+        .trade-area {
+            display: flex;
+            background: #ffffff;
+            border-top: 1px solid #f0f0f0;
+        }
+        .trade-left {
+            flex: 1;
+            padding: 16px 12px;
+        }
+
+        /* 方向按钮（做多/做空） */
+        .direction-buttons {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .dir-btn {
+            flex: 1;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #f0f0f0;
+            background: #f7f8fa;
+            font-size: 16px;
+            font-weight: 600;
+            color: #666;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .dir-btn.active[data-dir="long"] {
+            background: #00c48c; /* 做多绿色 */
+            color: #ffffff;
+            border-color: #00c48c;
+        }
+        .dir-btn.active[data-dir="short"] {
+            background: #ff5252; /* 做空红色 */
+            color: #ffffff;
+            border-color: #ff5252;
+        }
+
+        /* 数量输入行：包含输入卡片和杠杆卡片 */
+        .quantity-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+        .input-card, .leverage-card {
+            background: #f7f8fa;
+            border-radius: 8px;
+            padding: 8px 12px;
+            border: 1px solid #f0f0f0;
+        }
+        .input-card {
+            flex: 3;
+        }
+        .leverage-card {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 6px 8px;
+        }
+        .quantity-input {
+            width: 100%;
+            padding: 4px 0;
+            border: none;
+            background: transparent;
+            text-align: center;
+            font-size: 16px;
+            outline: none;
+        }
+        .leverage-btn {
+            width: 100%;
+            text-align: center;
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            cursor: pointer;
+            padding: 2px 0;
+        }
+        .leverage-btn:hover {
+            background: rgba(0,0,0,0.05);
+            border-radius: 4px;
+        }
+        .leverage-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 2px;
+        }
+
+        /* 可用资金显示 */
+        .available-funds {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 12px;
+            margin-top: 0;
+        }
+
+        /* 快速百分比按钮（25%、50%等） */
+        .quick-buttons {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .quick-btn {
+            flex: 1;
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid #f0f0f0;
+            background: #f7f8fa;
+            font-size: 14px;
+            color: #666;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .quick-btn.active[data-percent="25"] {
+            background: #4285f4;
+            color: white;
+            border-color: #4285f4;
+        }
+        .quick-btn.active[data-percent="50"] {
+            background: #fbbc05;
+            color: white;
+            border-color: #fbbc05;
+        }
+        .quick-btn.active[data-percent="75"] {
+            background: #ff9800;
+            color: white;
+            border-color: #ff9800;
+        }
+        .quick-btn.active[data-percent="100"] {
+            background: #ea4335;
+            color: white;
+            border-color: #ea4335;
+        }
+
+        /* 保证金信息 */
+        .margin-info {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 16px;
+        }
+
+        /* 开仓和平仓按钮组 */
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+        }
+        .open-btn, .close-btn {
+            flex: 1;
+            padding: 14px;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+        }
+        .open-btn {
+            background: #ff5252;
+            color: #ffffff;
+        }
+        .close-btn {
+            background: #f0f0f0;
+            color: #333;
+            border: 1px solid #ddd;
+        }
+        .close-btn:hover {
+            background: #e0e0e0;
+        }
+
+        /* ---------- 底部导航栏 ---------- */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            height: 80px;
+            background: transparent;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 8px 12px;
+            z-index: 999;
+        }
+        .nav-item {
+            font-size: 12px;
+            color: #333;
+            text-align: center;
+            cursor: pointer;
+            padding: 10px 12px;
+            background: #ffffff;
+            border-radius: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            flex: 1;
+            margin: 0 4px;
+            transition: all 0.2s;
+            font-weight: 500;
+            position: relative;
+            -webkit-tap-highlight-color: transparent; /* 移除移动端点击高亮 */
+        }
+        .nav-item:active {
+            background: #ffffff;
+            color: #333;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        .nav-item.active {
+            background: #4285f4;
+            color: white;
+            box-shadow: 0 4px 12px rgba(66, 133, 244, 0.3);
+        }
+        .nav-item.active:active {
+            background: #4285f4;
+            color: white;
+        }
+
+        /* 爆仓徽章（红底白字） */
+        .liquidation-badge {
+            position: absolute;
+            top: 0;
+            right: 4px;
+            background-color: #ff3b30;
+            color: white;
+            font-size: 10px;
+            font-weight: 600;
+            min-width: 18px;
+            height: 18px;
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+
+        /* 保证金率（蓝色文字） */
+        .margin-rate {
+            color: #4285f4;
+            font-weight: 600;
+        }
+
+        /* 单个平仓按钮（持仓页） */
+        .single-close-btn {
+            width: 100%;
+            padding: 8px;
+            margin-top: 8px;
+            border-radius: 6px;
+            background: #f0f0f0;
+            border: 1px solid #ddd;
+            font-size: 14px;
+            font-weight: 500;
+            color: #333;
+            cursor: pointer;
+        }
+        .single-close-btn:hover {
+            background: #e0e0e0;
+        }
+
+        /* ---------- K线图样式 ---------- */
+        .candle-up {
+            fill: #00c48c; /* 阳线绿色实心 */
+            stroke: #00c48c;
+            stroke-width: 1;
+        }
+        .candle-down {
+            fill: #ff5252; /* 阴线红色实心 */
+            stroke: #ff5252;
+            stroke-width: 1;
+        }
+        .candle-shadow {
+            stroke: #666;
+            stroke-width: 1;
+        }
+        .axis-line {
+            stroke: #aaa;
+            stroke-width: 1;
+        }
+        .axis-text {
+            font-size: 9px;
+            fill: #666;
+        }
+        .current-price-line {
+            stroke: #4285f4;
+            stroke-width: 1.5;
+            stroke-dasharray: 5,3;
+        }
+        .current-price-label {
+            font-size: 10px;
+            fill: #4285f4;
+            font-weight: 600;
+        }
+
+        /* ---------- 通用卡片样式 ---------- */
+        .card {
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 18px;
+            margin: 12px 16px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+        #page-market .card {
+            margin: 16px;
+        }
+
+        /* 行情页面股票列表 */
+        .stock-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .stock-item-stack {
+            width: 100%;
+            background: #ffffff;
+            border-radius: 14px;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            border: 1px solid #f0f0f0;
+            cursor: pointer;
+        }
+        .stock-item-stack.active {
+            background: #e8f3ff;
+            border-color: #4285f4;
+        }
+        .stock-info-left {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .stock-name {
+            font-size: 15px;
+            font-weight: 600;
+            color: #333;
+        }
+        .stock-desc {
+            font-size: 12px;
+            color: #999;
+        }
+        .stock-item-stack.active .stock-name,
+        .stock-item-stack.active .stock-desc {
+            color: #4285f4;
+        }
+        .stock-price {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        /* 通用卡片标题 */
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 14px;
+            color: #333;
+        }
+
+        /* 资产页面原有行样式（可能被新布局覆盖，保留兼容） */
+        .row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .label {
+            color: #666;
+            font-size: 14px;
+        }
+        .value {
+            font-size: 18px;
+            font-weight: 700;
+            color: #333;
+        }
+
+        /* 图表容器 */
+        .chart-box {
+            height: 180px;
+            margin-top: 10px;
+            position: relative;
+        }
+
+        /* 历史记录条目（持仓页、交易历史） */
+        .history-item {
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
+        }
+        .history-row {
+            display: flex;
+            justify-content: space-between;
+        }
+        .chart-line {
+            stroke: #4285f4;
+            stroke-width: 2;
+            fill: none;
+        }
+
+        /* ---------- 资产卡片新布局（2x2网格） ---------- */
+        .asset-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .asset-item {
+            text-align: center;
+        }
+        .asset-label {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+        .asset-amount {
+            font-size: 20px; /* 默认20px，下面通过ID单独调整 */
+            font-weight: 700;
+        }
+        /* 单独调整四个数值的字体大小 */
+        #total-asset {
+            font-size: 22px; /* 总资产大2px */
+        }
+        #hourly-profit,
+        #position-profit,
+        #available-balance {
+            font-size: 16px; /* 其他三个小2px */
+        }
+
+        .top-left {
+            grid-column: 1 / 2;
+            grid-row: 1 / 2;
+            text-align: left;
+        }
+        .top-right {
+            grid-column: 2 / 3;
+            grid-row: 1 / 2;
+            text-align: right;
+        }
+        .bottom-left {
+            grid-column: 1 / 2;
+            grid-row: 2 / 3;
+            text-align: left;
+        }
+        .bottom-right {
+            grid-column: 2 / 3;
+            grid-row: 2 / 3;
+            text-align: right;
+        }
+
+        /* ---------- 综合页面功能卡片网格（6个卡片） ---------- */
+        .function-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .function-card {
+            flex: 1 1 calc(33.333% - 8px);
+            min-width: 100px;
+            background: #f7f8fa;
+            border-radius: 16px;
+            padding: 20px 10px;
+            text-align: center;
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            border: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .function-card:hover {
+            background: #e8f3ff;
+            border-color: #4285f4;
+        }
+
+        /* ---------- 房产卡片样式 ---------- */
+        .property-cards {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: center;
+        }
+        .property-card {
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            flex: 1 1 200px;
+            min-width: 180px;
+            border: 1px solid #f0f0f0;
+        }
+        .property-name {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .property-price {
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 4px;
+        }
+        .property-down {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        .property-detail {
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 12px;
+        }
+        .property-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            background: #f0f0f0;
+            color: #333;
+            flex: 1 1 auto;
+        }
+        .btn-primary {
+            background: #4285f4;
+            color: white;
+        }
+        .btn-success {
+            background: #00c48c;
+            color: white;
+        }
+        .btn-warning {
+            background: #ff9800;
+            color: white;
+        }
+        .btn-danger {
+            background: #ff5252;
+            color: white;
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .status-text {
+            font-size: 12px;
+            margin-top: 8px;
+            padding: 4px 0;
+        }
+        .overdue-badge {
+            color: #ff5252;
+            font-weight: 600;
+        }
+
+        /* ---------- 兑换码样式 ---------- */
+        .redeem-container {
+            padding: 20px;
+            text-align: center;
+        }
+        .redeem-input {
+            width: 100%;
+            max-width: 300px;
+            padding: 12px;
+            margin: 10px auto;
+            border: 1px solid #f0f0f0;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        .redeem-button {
+            padding: 12px 24px;
+            background: #4285f4;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .redeem-message {
+            margin-top: 16px;
+            font-size: 14px;
+            min-height: 20px;
+        }
+
+        /* 仓库默认页面（开发中） */
+        .warehouse-default {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+
+<!-- ==================== 行情页面 ==================== -->
+<div class="page active" id="page-market">
+    <div class="card">
+        <div class="card-title">股票行情</div>
+        <div class="stock-stack" id="stock-list"></div> <!-- 动态填充股票列表 -->
+    </div>
+</div>
+
+<!-- ==================== 交易页面 ==================== -->
+<div class="page" id="page-trade">
+    <div class="trade-container">
+        <!-- 顶部信息栏：股票名称、当前价、涨跌幅 -->
+        <div class="top-bar">
+            <div class="price-row">
+                <span class="stock-name" id="trade-stock-name">星途科技</span>
+                <span class="current-price" id="trade-current-price">868.88</span>
+                <span class="change" id="trade-change">-0.00%</span>
+            </div>
+            <!-- 2分钟K线切换按钮 -->
+            <div class="time-toggle" id="time-toggle">2m</div>
+        </div>
+        <!-- K线图表区 -->
+        <div class="chart-area">
+            <div class="price-chart">
+                <svg width="100%" height="100%" viewBox="0 0 380 220" preserveAspectRatio="none">
+                    <g id="candles"></g> <!-- 动态绘制K线 -->
+                </svg>
+                <div class="tooltip" id="tooltip"></div> <!-- 悬浮提示框 -->
+            </div>
+        </div>
+        <!-- 交易操作区 -->
+        <div class="trade-area">
+            <div class="trade-left">
+                <!-- 方向按钮 -->
+                <div class="direction-buttons">
+                    <button class="dir-btn active" id="dir-long" data-dir="long">做多</button>
+                    <button class="dir-btn" id="dir-short" data-dir="short">做空</button>
+                </div>
+                <!-- 数量输入和杠杆卡片 -->
+                <div class="quantity-row">
+                    <div class="input-card">
+                        <input type="number" class="quantity-input" id="quantity-input" value="1" min="1">
+                    </div>
+                    <div class="leverage-card">
+                        <div class="leverage-btn" id="leverage-btn">1x</div>
+                        <div class="leverage-label">杠杆</div>
+                    </div>
+                </div>
+                <!-- 可用资金 -->
+                <div class="available-funds">可用资金: <span id="available-funds">10000.00</span></div>
+                <!-- 快速百分比按钮 -->
+                <div class="quick-buttons">
+                    <button class="quick-btn" data-percent="25">25%</button>
+                    <button class="quick-btn" data-percent="50">50%</button>
+                    <button class="quick-btn" data-percent="75">75%</button>
+                    <button class="quick-btn" data-percent="100">100%</button>
+                </div>
+                <!-- 保证金信息 -->
+                <div class="margin-info">保证金 <span id="margin-amount">0.00</span> / 总计 <span id="total-amount">0.00</span></div>
+                <!-- 开仓/一键平仓按钮 -->
+                <div class="action-buttons">
+                    <button class="open-btn" id="open-position-btn">做多开仓</button>
+                    <button class="close-btn" id="close-position-btn">一键平仓</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== 持仓页面 ==================== -->
+<div class="page" id="page-position">
+    <div class="card">
+        <div class="card-title">我的持仓</div>
+        <div id="position-list"></div> <!-- 动态显示持仓列表 -->
+    </div>
+</div>
+
+<!-- ==================== 资产页面 ==================== -->
+<div class="page" id="page-asset">
+    <!-- 新设计的资产卡片，采用2x2网格 -->
+    <div class="card" style="padding: 20px;">
+        <div class="asset-grid">
+            <!-- 左上：总资产 -->
+            <div class="asset-item top-left">
+                <div class="asset-label">总资产 ></div>
+                <div class="asset-amount" id="total-asset">10000.00</div>
+            </div>
+            <!-- 右上：当时盈亏（一小时） -->
+            <div class="asset-item top-right">
+                <div class="asset-label">时盈亏</div>
+                <div class="asset-amount" id="hourly-profit">0.00</div>
+            </div>
+            <!-- 左下：持仓盈亏 -->
+            <div class="asset-item bottom-left">
+                <div class="asset-label">持仓盈亏</div>
+                <div class="asset-amount" id="position-profit">0.00</div>
+            </div>
+            <!-- 右下：可用余额 -->
+            <div class="asset-item bottom-right">
+                <div class="asset-label">可用余额</div>
+                <div class="asset-amount" id="available-balance">10000.00</div>
+            </div>
+        </div>
+    </div>
+    <!-- 收益趋势图表卡片 -->
+    <div class="card">
+        <div class="card-title">收益趋势</div>
+        <div class="chart-box">
+            <svg width="100%" height="100%" viewBox="0 0 320 180" id="profit-svg"></svg>
+        </div>
+    </div>
+    <!-- 交易历史卡片 -->
+    <div class="card">
+        <div class="card-title">交易历史</div>
+        <div id="trade-history-list"></div>
+    </div>
+</div>
+
+<!-- ==================== 综合页面 ==================== -->
+<div class="page" id="page-history">
+    <div class="card">
+        <div class="card-title">综合服务</div>
+        <!-- 六个功能卡片 -->
+        <div id="function-grid" class="function-grid">
+            <div class="function-card" data-function="property">🏠 房产</div>
+            <div class="function-card" data-function="redeem">🎁 兑换码</div>
+            <div class="function-card" data-function="warehouse">📦 仓库</div>
+            <div class="function-card" data-function="dev1">⚙️ 开发中</div>
+            <div class="function-card" data-function="dev2">⚙️ 开发中</div>
+            <div class="function-card" data-function="dev3">⚙️ 开发中</div>
+        </div>
+        <!-- 房产子界面（初始隐藏） -->
+        <div id="property-subpage" style="display: none;">
+            <div style="display: flex; align-items: center; margin-bottom: 16px;">
+                <button id="back-to-functions-property" class="btn" style="width: auto; margin-right: 12px;">← 返回</button>
+                <span style="font-weight: 600;">房产投资</span>
+            </div>
+            <div id="property-content"></div>
+        </div>
+        <!-- 兑换码子界面（初始隐藏） -->
+        <div id="redeem-subpage" style="display: none;">
+            <div style="display: flex; align-items: center; margin-bottom: 16px;">
+                <button id="back-to-functions-redeem" class="btn" style="width: auto; margin-right: 12px;">← 返回</button>
+                <span style="font-weight: 600;">兑换码</span>
+            </div>
+            <div class="redeem-container">
+                <input type="text" id="redeem-code-input" class="redeem-input" placeholder="请输入兑换码">
+                <br>
+                <button id="redeem-button" class="redeem-button">兑换</button>
+                <div id="redeem-message" class="redeem-message"></div>
+            </div>
+        </div>
+        <!-- 仓库子界面（初始隐藏，显示开发中） -->
+        <div id="warehouse-subpage" style="display: none;">
+            <div style="display: flex; align-items: center; margin-bottom: 16px;">
+                <button id="back-to-functions-warehouse" class="btn" style="width: auto; margin-right: 12px;">← 返回</button>
+                <span style="font-weight: 600;">仓库</span>
+            </div>
+            <div class="warehouse-default">仓库功能开发中，敬请期待</div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== 底部导航栏 ==================== -->
+<div class="bottom-nav">
+    <div class="nav-item active" data-page="page-market">行情</div>
+    <div class="nav-item" data-page="page-position" id="nav-position">持仓</div>
+    <div class="nav-item" data-page="page-trade">交易</div>
+    <div class="nav-item" data-page="page-asset">资产</div>
+    <div class="nav-item" data-page="page-history">综合</div>
+</div>
+
+<script>
+    (function() {
+        // ==================== 初始化数据 ====================
+        // 股票列表：四个股票，分别对应千位、百位、十位、个位股价区间
+        const stockList = [
+            { code: "X001", name: "星途科技", desc: "千位股价", price: Math.floor(Math.random() * 4000 + 1000), basePrice: 0 }, // 1000~5000
+            { code: "J002", name: "金汇控股", desc: "百位股价", price: Math.floor(Math.random() * 800 + 100), basePrice: 0 },   // 100~900
+            { code: "K003", name: "康芯医疗", desc: "十位股价", price: Math.floor(Math.random() * 80 + 10), basePrice: 0 },     // 10~90
+            { code: "R004", name: "锐能新材", desc: "个位股价", price: Math.floor(Math.random() * 8 + 1), basePrice: 0 }        // 1~9
+        ];
+        // 设置基准价格（用于涨跌幅计算）
+        stockList.forEach(s => s.basePrice = s.price);
+
+        // 房产数据
+        const properties = [
+            { id: 'jianzhujia', name: '简筑家', price: 300000, downPayment: 100000, monthly: 2000, periods: 100, rent: 2000 },
+            { id: 'yunjing', name: '云境雅居', price: 800000, downPayment: 300000, monthly: 5000, periods: 100, rent: 5000 },
+            { id: 'jingsixuan', name: '静思轩', price: 1500000, downPayment: 800000, monthly: 8000, periods: 100, rent: 8000 }
+        ];
+
+        let ownedProperties = {};      // 已拥有房产的状态
+        let redeemedCodes = {};        // 已使用的兑换码
+        const validCodes = {           // 有效兑换码及奖励金额
+            '1234567890': 100000,
+            'gp666': 500000,
+            'gp123456': 1000000
+        };
+
+        let gameCycle = 0;             // 全局循环计数器（用于房产时间）
+
+        // 一小时历史总资产数组（720个点，每5秒一个，正好1小时）
+        const HOUR_CYCLES = 720;
+        let hourlyProfitHistory = [];
+
+        // 游戏主状态
+        let game = {
+            cash: 10000,               // 可用现金
+            currentCode: "X001",        // 当前选中的股票代码
+            stocks: JSON.parse(JSON.stringify(stockList)), // 股票数据（深拷贝）
+            positions: [],               // 持仓数组，每个对象包含id, code, direction, quantity, openPrice, leverage
+            history: [],                 // 交易历史记录
+            profitHistory: [10000],      // 总资产历史（用于图表，最多20个点）
+            posHistory: [],              // 当前股票价格历史（用于持仓走势图）
+            candleData: {                 // K线数据，按股票代码存储
+                X001: [],
+                J002: [],
+                K003: [],
+                R004: []
+            },
+            maxCandleCount: 120,         // 最多保留120根K线（10分钟）
+            shortCandleCount: 24,         // 2分钟模式保留24根K线
+            useShortCandle: false,        // 是否显示2分钟K线
+            liquidationBadgeCount: 0,     // 爆仓笔数（用于红点显示）
+            hasNewLiquidation: false       // 是否有新的爆仓
+        };
+
+        // 初始化一小时历史数组
+        hourlyProfitHistory.push(10000);
+
+        // ==================== 工具函数：生成初始K线 ====================
+        function generateInitialCandles(basePrice, code) {
+            const candles = [];
+            const now = new Date();
+            let prevClose = basePrice;
+            for (let i = 9; i >= 0; i--) {
+                const time = new Date(now.getTime() - i * 5000);
+                const timeStr = time.toLocaleTimeString();
+                // 生成波动在0.1%~5%之间的收盘价
+                const changePercent = (Math.random() * 4.9 + 0.1) / 100;
+                const direction = Math.random() > 0.5 ? 1 : -1;
+                const close = prevClose * (1 + direction * changePercent);
+                const finalClose = Math.max(0.2, close);
+                // 随机生成最高价和最低价，保证包含开盘收盘
+                const high = Math.max(prevClose, finalClose) * (1 + Math.random() * 0.01);
+                const low = Math.min(prevClose, finalClose) * (1 - Math.random() * 0.01);
+                candles.push({
+                    time: timeStr,
+                    open: Number(prevClose.toFixed(2)),
+                    high: Number(high.toFixed(2)),
+                    low: Number(Math.max(0.2, low).toFixed(2)),
+                    close: Number(finalClose.toFixed(2))
+                });
+                prevClose = finalClose;
+            }
+            return candles;
+        }
+
+        // 为每只股票生成初始K线，并更新当前价格
+        game.stocks.forEach(s => {
+            game.candleData[s.code] = generateInitialCandles(s.price, s.code);
+            const last = game.candleData[s.code][game.candleData[s.code].length - 1];
+            s.price = last.close;
+        });
+
+        // 初始化当前股票价格历史
+        game.posHistory = [game.stocks.find(s => s.code === game.currentCode).price];
+
+        // ==================== DOM 元素获取 ====================
+        const cashEl = document.getElementById("cash"); // 不再使用，但保留
+        const totalPvEl = document.getElementById("total_pv");
+        const totalEl = document.getElementById("total");
+        const profitLine = document.getElementById("profit_line");
+        const posLine = document.getElementById("pos_line");
+        const positionListEl = document.getElementById("position-list");
+        const tradeHistoryListEl = document.getElementById("trade-history-list");
+        const tradeStockNameEl = document.getElementById("trade-stock-name");
+        const tradeCurrentPriceEl = document.getElementById("trade-current-price");
+        const tradeChangeEl = document.getElementById("trade-change");
+        const candlesEl = document.getElementById("candles");
+        const availableFundsEl = document.getElementById("available-funds");
+        const marginAmountEl = document.getElementById("margin-amount");
+        const totalAmountEl = document.getElementById("total-amount");
+        const tooltipEl = document.getElementById("tooltip");
+        const quantityInput = document.getElementById("quantity-input");
+        const openBtn = document.getElementById("open-position-btn");
+        const closeBtn = document.getElementById("close-position-btn");
+        const dirLong = document.getElementById("dir-long");
+        const dirShort = document.getElementById("dir-short");
+        const leverageBtn = document.getElementById("leverage-btn");
+        const timeToggle = document.getElementById("time-toggle");
+        const quickBtns = document.querySelectorAll(".quick-btn");
+        const navPosition = document.getElementById("nav-position");
+
+        // 资产页面新元素
+        const totalAssetEl = document.getElementById("total-asset");
+        const hourlyProfitEl = document.getElementById("hourly-profit");
+        const positionProfitEl = document.getElementById("position-profit");
+        const availableBalanceEl = document.getElementById("available-balance");
+
+        // 综合页面元素
+        const functionGrid = document.getElementById('function-grid');
+        const propertySubpage = document.getElementById('property-subpage');
+        const propertyContent = document.getElementById('property-content');
+        const backToFunctionsProperty = document.getElementById('back-to-functions-property');
+        const redeemSubpage = document.getElementById('redeem-subpage');
+        const redeemInput = document.getElementById('redeem-code-input');
+        const redeemButton = document.getElementById('redeem-button');
+        const redeemMessage = document.getElementById('redeem-message');
+        const backToFunctionsRedeem = document.getElementById('back-to-functions-redeem');
+        const warehouseSubpage = document.getElementById('warehouse-subpage');
+        const backToFunctionsWarehouse = document.getElementById('back-to-functions-warehouse');
+
+        // 当前方向（做多/做空）和杠杆
+        let currentDir = "long";
+        let currentLeverage = 1;
+        const leverageValues = [1, 2, 5, 10];
+        let leverageIndex = 0;
+
+        // ==================== 初始化行情列表 ====================
+        function renderStockList() {
+            const stockListEl = document.getElementById('stock-list');
+            let html = '';
+            game.stocks.forEach(s => {
+                html += `
+                    <div class="stock-item-stack" data-code="${s.code}">
+                        <div class="stock-info-left">
+                            <div class="stock-name">${s.name}</div>
+                            <div class="stock-desc">${s.code} ${s.desc}</div>
+                        </div>
+                        <div class="stock-price">${s.price.toFixed(2)}</div>
+                    </div>
+                `;
+            });
+            stockListEl.innerHTML = html;
+            // 为每个股票项绑定点击事件，切换至交易页
+            document.querySelectorAll(".stock-item-stack").forEach(el => {
+                el.addEventListener("click", () => {
+                    game.currentCode = el.dataset.code;
+                    updateTradePage();
+                    document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+                    document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
+                    document.getElementById("page-trade").classList.add("active");
+                    document.querySelector('[data-page="page-trade"]').classList.add("active");
+                });
+            });
+        }
+
+        // ==================== 杠杆按钮点击 ====================
+        leverageBtn.addEventListener("click", () => {
+            leverageIndex = (leverageIndex + 1) % leverageValues.length;
+            currentLeverage = leverageValues[leverageIndex];
+            leverageBtn.textContent = currentLeverage + "x";
+            updateMarginInfo();
+        });
+
+        // ==================== 方向切换 ====================
+        dirLong.addEventListener("click", () => {
+            dirLong.classList.add("active");
+            dirShort.classList.remove("active");
+            currentDir = "long";
+            openBtn.textContent = "做多开仓";
+        });
+        dirShort.addEventListener("click", () => {
+            dirShort.classList.add("active");
+            dirLong.classList.remove("active");
+            currentDir = "short";
+            openBtn.textContent = "做空开仓";
+        });
+
+        // ==================== 2分钟K线切换 ====================
+        timeToggle.addEventListener("click", () => {
+            game.useShortCandle = !game.useShortCandle;
+            timeToggle.classList.toggle("active", game.useShortCandle);
+            updateCandleChart();
+        });
+
+        // ==================== 百分比按钮点击 ====================
+        quickBtns.forEach(btn => {
+            btn.addEventListener("click", () => {
+                quickBtns.forEach(b => b.classList.remove("active"));
+                btn.classList.add("active");
+                const percent = parseInt(btn.textContent) / 100;
+                const stock = getCurrentStock();
+                if (!stock) return;
+                // 最大可开数量 = 现金 * 杠杆 / 股价
+                const maxQ = Math.floor(game.cash * currentLeverage / stock.price);
+                quantityInput.value = Math.floor(maxQ * percent) || 1;
+                updateMarginInfo();
+            });
+        });
+
+        // 数量输入改变时更新保证金显示
+        quantityInput.addEventListener("input", updateMarginInfo);
+
+        // ==================== 开仓 ====================
+        openBtn.addEventListener("click", () => {
+            const stock = getCurrentStock();
+            if (!stock) return;
+            const qty = parseInt(quantityInput.value);
+            if (isNaN(qty) || qty <= 0) return;
+
+            const requiredMargin = (qty * stock.price) / currentLeverage;
+            if (requiredMargin > game.cash) {
+                alert("可用资金不足");
+                return;
+            }
+
+            game.cash -= requiredMargin;
+
+            const positionId = Date.now() + '-' + Math.random().toString(36).substr(2, 8);
+            game.positions.push({
+                id: positionId,
+                code: stock.code,
+                direction: currentDir,
+                quantity: qty,
+                openPrice: stock.price,
+                leverage: currentLeverage
+            });
+
+            game.history.push({
+                name: stock.name,
+                type: currentDir === "long" ? "买入" : "卖出",
+                num: qty,
+                price: stock.price.toFixed(2),
+                time: new Date().toLocaleTimeString(),
+                leverage: currentLeverage,
+                pl: null // 开仓无盈亏
+            });
+
+            updateAll();
+            renderPosition();
+            renderTradeHistory();
+            alert(`${currentDir === "long" ? "做多" : "做空"}开仓成功！数量 ${qty}，杠杆 ${currentLeverage}x`);
+        });
+
+        // ==================== 一键平仓（平掉当前股票所有持仓） ====================
+        closeBtn.addEventListener("click", () => {
+            const stock = getCurrentStock();
+            if (!stock) return;
+
+            const positionsToClose = game.positions.filter(p => p.code === stock.code);
+            if (positionsToClose.length === 0) {
+                alert("没有可平持仓");
+                return;
+            }
+
+            let totalReturn = 0;
+            positionsToClose.forEach(p => {
+                if (p.direction === "long") {
+                    totalReturn += (stock.price - p.openPrice) * p.quantity;
+                } else {
+                    totalReturn += (p.openPrice - stock.price) * p.quantity;
+                }
+                const margin = (p.quantity * p.openPrice) / p.leverage;
+                game.cash += margin;
+            });
+
+            game.cash += totalReturn;
+
+            positionsToClose.forEach(p => {
+                const pl = p.direction === "long" 
+                    ? (stock.price - p.openPrice) * p.quantity
+                    : (p.openPrice - stock.price) * p.quantity;
+                game.history.push({
+                    name: stock.name,
+                    type: p.direction === "long" ? "平多" : "平空",
+                    num: p.quantity,
+                    price: stock.price.toFixed(2),
+                    time: new Date().toLocaleTimeString(),
+                    leverage: p.leverage,
+                    pl: pl.toFixed(2)
+                });
+            });
+
+            game.positions = game.positions.filter(p => p.code !== stock.code);
+
+            updateAll();
+            renderPosition();
+            renderTradeHistory();
+            alert(`一键平仓成功！共平掉 ${positionsToClose.length} 笔持仓，盈亏 ${totalReturn.toFixed(2)}`);
+        });
+
+        // ==================== 单个平仓 ====================
+        function closeSinglePosition(positionId) {
+            const position = game.positions.find(p => p.id === positionId);
+            if (!position) return;
+
+            const stock = game.stocks.find(s => s.code === position.code);
+            if (!stock) return;
+
+            let pl = 0;
+            if (position.direction === "long") {
+                pl = (stock.price - position.openPrice) * position.quantity;
+            } else {
+                pl = (position.openPrice - stock.price) * position.quantity;
+            }
+
+            const margin = (position.quantity * position.openPrice) / position.leverage;
+            game.cash += margin + pl;
+
+            game.history.push({
+                name: stock.name,
+                type: position.direction === "long" ? "平多" : "平空",
+                num: position.quantity,
+                price: stock.price.toFixed(2),
+                time: new Date().toLocaleTimeString(),
+                leverage: position.leverage,
+                pl: pl.toFixed(2)
+            });
+
+            game.positions = game.positions.filter(p => p.id !== positionId);
+
+            updateAsset();
+            renderPosition();
+            renderTradeHistory();
+            if (document.getElementById("page-trade").classList.contains("active")) {
+                updateTradePage();
+            }
+            alert(`平仓成功！盈亏 ${pl.toFixed(2)}`);
+        }
+
+        // ==================== 底部导航切换 ====================
+        document.querySelectorAll(".nav-item").forEach(item => {
+            item.addEventListener("click", () => {
+                const pageId = item.dataset.page;
+                if (!pageId) return;
+                document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+                document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
+                document.getElementById(pageId).classList.add("active");
+                item.classList.add("active");
+                
+                if (pageId === "page-position") {
+                    game.hasNewLiquidation = false;
+                    game.liquidationBadgeCount = 0;
+                    updateLiquidationBadge();
+                    renderPosition();
+                }
+                if (pageId === "page-asset") {
+                    updateAsset();
+                    renderTradeHistory();
+                }
+                if (pageId === "page-trade") updateTradePage();
+                if (pageId === "page-history") {
+                    functionGrid.style.display = 'flex';
+                    propertySubpage.style.display = 'none';
+                    redeemSubpage.style.display = 'none';
+                    warehouseSubpage.style.display = 'none';
+                }
+            });
+        });
+
+        // ==================== 综合页面功能卡片点击 ====================
+        document.querySelectorAll('.function-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const func = card.dataset.function;
+                if (func === 'property') {
+                    functionGrid.style.display = 'none';
+                    propertySubpage.style.display = 'block';
+                    redeemSubpage.style.display = 'none';
+                    warehouseSubpage.style.display = 'none';
+                    renderProperties();
+                } else if (func === 'redeem') {
+                    functionGrid.style.display = 'none';
+                    propertySubpage.style.display = 'none';
+                    redeemSubpage.style.display = 'block';
+                    warehouseSubpage.style.display = 'none';
+                    redeemMessage.textContent = '';
+                    redeemInput.value = '';
+                } else if (func === 'warehouse') {
+                    functionGrid.style.display = 'none';
+                    propertySubpage.style.display = 'none';
+                    redeemSubpage.style.display = 'none';
+                    warehouseSubpage.style.display = 'block';
+                } else {
+                    alert('功能开发中，敬请期待');
+                }
+            });
+        });
+
+        // 返回按钮
+        backToFunctionsProperty.addEventListener('click', () => {
+            propertySubpage.style.display = 'none';
+            functionGrid.style.display = 'flex';
+        });
+        backToFunctionsRedeem.addEventListener('click', () => {
+            redeemSubpage.style.display = 'none';
+            functionGrid.style.display = 'flex';
+        });
+        backToFunctionsWarehouse.addEventListener('click', () => {
+            warehouseSubpage.style.display = 'none';
+            functionGrid.style.display = 'flex';
+        });
+
+        // ==================== 兑换码功能 ====================
+        redeemButton.addEventListener('click', () => {
+            const code = redeemInput.value.trim();
+            if (!code) {
+                redeemMessage.textContent = '请输入兑换码';
+                redeemMessage.style.color = '#ff5252';
+                return;
+            }
+            if (redeemedCodes[code]) {
+                redeemMessage.textContent = '该兑换码已使用';
+                redeemMessage.style.color = '#ff5252';
+                return;
+            }
+            const reward = validCodes[code];
+            if (reward === undefined) {
+                redeemMessage.textContent = '无效的兑换码';
+                redeemMessage.style.color = '#ff5252';
+                return;
+            }
+            game.cash += reward;
+            redeemedCodes[code] = true;
+            redeemMessage.textContent = `兑换成功！获得 ${reward.toLocaleString()} 元`;
+            redeemMessage.style.color = '#00c48c';
+            redeemInput.value = '';
+            updateAsset();
+        });
+
+        // ==================== 辅助函数 ====================
+        function getCurrentStock() {
+            return game.stocks.find(s => s.code === game.currentCode);
+        }
+
+        // 更新保证金显示
+        function updateMarginInfo() {
+            const qty = parseInt(quantityInput.value) || 0;
+            const stock = getCurrentStock();
+            if (!stock) return;
+            const total = (qty * stock.price).toFixed(2);
+            const margin = (qty * stock.price / currentLeverage).toFixed(2);
+            marginAmountEl.textContent = margin;
+            totalAmountEl.textContent = total;
+        }
+
+        // 更新行情页面股票价格颜色
+        function updateStockUI() {
+            document.querySelectorAll(".stock-item-stack").forEach(el => {
+                const code = el.dataset.code;
+                const s = game.stocks.find(x => x.code === code);
+                if (s) {
+                    const priceEl = el.querySelector(".stock-price");
+                    priceEl.innerText = s.price.toFixed(2);
+                    const change = s.price - s.basePrice;
+                    priceEl.className = "stock-price " + (change >= 0 ? "up" : "down");
+                }
+            });
+        }
+
+        // ==================== 爆仓检查（基于价格） ====================
+        function checkLiquidation() {
+            let liquidated = false;
+            const positionsCopy = [...game.positions];
+            
+            positionsCopy.forEach(p => {
+                const stock = game.stocks.find(s => s.code === p.code);
+                if (!stock) return;
+
+                if (p.direction === "long") {
+                    // 做多：价格 ≤ 开仓价 * (1 - 1/杠杆) 时爆仓
+                    if (stock.price <= p.openPrice * (1 - 1 / p.leverage)) {
+                        game.positions = game.positions.filter(pos => pos.id !== p.id);
+                        game.liquidationBadgeCount++;
+                        game.history.push({
+                            name: stock.name,
+                            type: "爆仓",
+                            num: p.quantity,
+                            price: stock.price.toFixed(2),
+                            time: new Date().toLocaleTimeString(),
+                            leverage: p.leverage,
+                            pl: (-(p.quantity * p.openPrice / p.leverage)).toFixed(2), // 亏损保证金
+                            reason: `价格跌破爆仓点`
+                        });
+                        liquidated = true;
+                    }
+                } else {
+                    // 做空：价格 ≥ 开仓价 * (1 + 1/杠杆) 时爆仓
+                    if (stock.price >= p.openPrice * (1 + 1 / p.leverage)) {
+                        game.positions = game.positions.filter(pos => pos.id !== p.id);
+                        game.liquidationBadgeCount++;
+                        game.history.push({
+                            name: stock.name,
+                            type: "爆仓",
+                            num: p.quantity,
+                            price: stock.price.toFixed(2),
+                            time: new Date().toLocaleTimeString(),
+                            leverage: p.leverage,
+                            pl: (-(p.quantity * p.openPrice / p.leverage)).toFixed(2),
+                            reason: `价格涨破爆仓点`
+                        });
+                        liquidated = true;
+                    }
+                }
+            });
+            
+            if (liquidated) {
+                game.hasNewLiquidation = true;
+                updateLiquidationBadge();
+                renderPosition();
+                renderTradeHistory();
+            }
+        }
+
+        // 更新底部持仓徽章
+        function updateLiquidationBadge() {
+            const oldBadge = document.querySelector('.liquidation-badge');
+            if (oldBadge) oldBadge.remove();
+            
+            if (game.hasNewLiquidation && game.liquidationBadgeCount > 0) {
+                const badge = document.createElement('span');
+                badge.className = 'liquidation-badge';
+                badge.textContent = game.liquidationBadgeCount > 99 ? '99+' : game.liquidationBadgeCount;
+                navPosition.appendChild(badge);
+            }
+        }
+
+        // ==================== 更新资产页面数据 ====================
+        function updateAsset() {
+            let floatingPL = 0;
+            game.positions.forEach(p => {
+                const stock = game.stocks.find(s => s.code === p.code);
+                if (stock) {
+                    if (p.direction === "long") {
+                        floatingPL += (stock.price - p.openPrice) * p.quantity;
+                    } else {
+                        floatingPL += (p.openPrice - stock.price) * p.quantity;
+                    }
+                }
+            });
+            const totalAsset = game.cash + floatingPL;
+
+            // 更新资产卡片
+            totalAssetEl.textContent = totalAsset.toFixed(2);
+            positionProfitEl.textContent = floatingPL.toFixed(2);
+            availableBalanceEl.textContent = game.cash.toFixed(2);
+
+            // 计算当时盈亏（一小时）
+            let hourlyProfit = 0;
+            if (hourlyProfitHistory.length > 0) {
+                const first = hourlyProfitHistory[0];
+                hourlyProfit = totalAsset - first;
+            }
+            hourlyProfitEl.textContent = hourlyProfit.toFixed(2);
+            // 根据正负设置颜色
+            hourlyProfitEl.className = 'asset-amount ' + (hourlyProfit >= 0 ? 'up' : 'down');
+            positionProfitEl.className = 'asset-amount ' + (floatingPL >= 0 ? 'up' : 'down');
+            availableBalanceEl.className = 'asset-amount up'; // 可用余额始终为正，用绿色
+
+            // 更新交易页面可用资金
+            availableFundsEl.textContent = game.cash.toFixed(2);
+
+            checkLiquidation();
+        }
+
+        // ==================== 渲染持仓列表 ====================
+        function renderPosition() {
+            if (game.positions.length === 0) {
+                positionListEl.innerHTML = `<div style="color:#999;text-align:center;padding:10px">暂无持仓</div>`;
+                return;
+            }
+            let html = "";
+            game.positions.forEach((p) => {
+                const stock = game.stocks.find(s => s.code === p.code);
+                if (!stock) return;
+                const directionText = p.direction === "long" ? "多头" : "空头";
+                const color = p.direction === "long" ? "up" : "down";
+                const pl = p.direction === "long" 
+                    ? (stock.price - p.openPrice) * p.quantity
+                    : (p.openPrice - stock.price) * p.quantity;
+                const initialMargin = (p.quantity * p.openPrice) / p.leverage;
+                const currentEquity = initialMargin + pl;
+                const maintenanceMargin = (p.quantity * stock.price) / p.leverage;
+                const marginRate = (currentEquity / maintenanceMargin * 100).toFixed(2);
+                
+                const longLiquidationPrice = p.openPrice * (1 - 1 / p.leverage);
+                const shortLiquidationPrice = p.openPrice * (1 + 1 / p.leverage);
+                const liquidationPrice = p.direction === "long" ? longLiquidationPrice.toFixed(2) : shortLiquidationPrice.toFixed(2);
+
+                html += `
+                <div class="history-item" data-position-id="${p.id}">
+                    <div class="history-row">
+                        <div>${stock.name} <span class="${color}">${directionText}</span></div>
+                        <div>杠杆 ${p.leverage}x</div>
+                    </div>
+                    <div class="history-row" style="margin-top:4px">
+                        <div>股数：${p.quantity}</div>
+                        <div>开仓价：${p.openPrice.toFixed(2)}</div>
+                    </div>
+                    <div class="history-row">
+                        <div>浮动盈亏：<span class="${pl >= 0 ? 'up' : 'down'}">${pl.toFixed(2)}</span></div>
+                        <div>爆仓价：${liquidationPrice}</div>
+                    </div>
+                    <div class="history-row">
+                        <div>保证金率：<span class="margin-rate">${marginRate}%</span></div>
+                    </div>
+                    <button class="single-close-btn" data-id="${p.id}">平仓</button>
+                </div>`;
+            });
+            positionListEl.innerHTML = html;
+        }
+
+        // 为平仓按钮绑定事件（事件委托）
+        positionListEl.addEventListener('click', function(e) {
+            if (e.target.classList.contains('single-close-btn')) {
+                const id = e.target.getAttribute('data-id');
+                if (id) {
+                    closeSinglePosition(id);
+                }
+            }
+        });
+
+        // ==================== 渲染交易历史 ====================
+        function renderTradeHistory() {
+            if (game.history.length === 0) {
+                tradeHistoryListEl.innerHTML = `<div style="color:#999;text-align:center;padding:10px">暂无交易记录</div>`;
+                return;
+            }
+            let html = '';
+            // 倒序显示（最新的在前）
+            game.history.slice().reverse().forEach(h => {
+                let typeColor = '';
+                if (h.type === '买入' || h.type === '平多') typeColor = 'up';
+                else if (h.type === '卖出' || h.type === '平空' || h.type === '爆仓') typeColor = 'down';
+                
+                let plHtml = '';
+                if (h.pl !== null && h.pl !== undefined) {
+                    const plValue = parseFloat(h.pl);
+                    const plColor = plValue >= 0 ? 'up' : 'down';
+                    plHtml = `<span class="${plColor}">盈亏: ${h.pl}</span>`;
+                }
+
+                html += `
+                <div class="history-item">
+                    <div class="history-row">
+                        <div>${h.name}</div>
+                        <div class="${typeColor}">${h.type}</div>
+                    </div>
+                    <div class="history-row" style="margin-top:4px">
+                        <div>${h.time}</div>
+                        <div>${h.num}股 × ${h.price} (${h.leverage || ''}x) ${h.reason ? ' ' + h.reason : ''}</div>
+                    </div>
+                    <div class="history-row">
+                        ${plHtml}
+                    </div>
+                </div>
+                `;
+            });
+            tradeHistoryListEl.innerHTML = html;
+        }
+
+        // ==================== 绘制持仓走势图（折线） ====================
+        function drawLine(path, arr) {
+            if (!arr || arr.length < 2) {
+                path.setAttribute("d", "M20,90 L300,90");
+                return;
+            }
+            const max = Math.max(...arr);
+            const min = Math.min(...arr);
+            const range = max - min || 1;
+            const step = 280 / (arr.length - 1);
+            let d = `M20,${90 - ((arr[0] - min) / range) * 60}`;
+            for (let i = 1; i < arr.length; i++) {
+                const x = 20 + i * step;
+                const y = 90 - ((arr[i] - min) / range) * 60;
+                d += ` L${x},${y}`;
+            }
+            path.setAttribute("d", d);
+        }
+
+        // ==================== 数值格式化（万/亿） ====================
+        function formatValue(value) {
+            if (value >= 1e8) {
+                return (value / 1e8).toFixed(1) + '亿';
+            } else if (value >= 1e4) {
+                return (value / 1e4).toFixed(1) + '万';
+            } else {
+                return value.toFixed(0);
+            }
+        }
+
+        // ==================== 绘制收益趋势图（平滑曲线+点阵） ====================
+        function drawProfitChart(arr) {
+            const svg = document.getElementById('profit-svg');
+            if (!svg) return;
+
+            svg.innerHTML = `<defs>
+                <pattern id="dotPattern" patternUnits="userSpaceOnUse" width="3" height="3">
+                    <circle cx="1.5" cy="1.5" r="1" fill="#4285f4" opacity="0.6"/>
+                </pattern>
+            </defs>`;
+
+            if (!arr || arr.length < 2) {
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", "40");
+                line.setAttribute("y1", "90");
+                line.setAttribute("x2", "280");
+                line.setAttribute("y2", "90");
+                line.setAttribute("stroke", "#4285f4");
+                line.setAttribute("stroke-width", "2");
+                svg.appendChild(line);
+                return;
+            }
+
+            const left = 40;
+            const right = 300;
+            const top = 15;
+            const bottom = 145;
+            const width = right - left;
+            const height = bottom - top;
+
+            const values = arr;
+            const maxVal = Math.max(...values);
+            const minVal = Math.min(...values);
+            const range = maxVal - minVal || 1;
+
+            const mapY = (val) => bottom - ((val - minVal) / range) * height;
+            const stepX = width / (values.length - 1);
+
+            const points = [];
+            for (let i = 0; i < values.length; i++) {
+                const x = left + i * stepX;
+                const y = mapY(values[i]);
+                points.push({ x, y });
+            }
+
+            // 生成平滑曲线路径（cardinal样条）
+            function getSmoothPath(points) {
+                if (points.length < 2) return "";
+                let d = `M${points[0].x},${points[0].y}`;
+                const tension = 0.5;
+                for (let i = 0; i < points.length - 1; i++) {
+                    const p0 = i > 0 ? points[i-1] : points[i];
+                    const p1 = points[i];
+                    const p2 = points[i+1];
+                    const p3 = i < points.length - 2 ? points[i+2] : p2;
+
+                    const cp1x = p1.x + (p2.x - p0.x) * tension / 3;
+                    const cp1y = p1.y + (p2.y - p0.y) * tension / 3;
+                    const cp2x = p2.x - (p3.x - p1.x) * tension / 3;
+                    const cp2y = p2.y - (p3.y - p1.y) * tension / 3;
+
+                    d += ` C${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x},${p2.y}`;
+                }
+                return d;
+            }
+
+            const smoothD = getSmoothPath(points);
+
+            // 点阵填充
+            const fillPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            const lastPoint = points[points.length-1];
+            const fillD = smoothD + ` L${lastPoint.x},${bottom} L${left},${bottom} Z`;
+            fillPath.setAttribute("d", fillD);
+            fillPath.setAttribute("fill", "url(#dotPattern)");
+            fillPath.setAttribute("stroke", "none");
+            svg.appendChild(fillPath);
+
+            // 光影曲线（半透明白色粗线）
+            const glowPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            glowPath.setAttribute("d", smoothD);
+            glowPath.setAttribute("stroke", "rgba(255,255,255,0.5)");
+            glowPath.setAttribute("stroke-width", "6");
+            glowPath.setAttribute("fill", "none");
+            svg.appendChild(glowPath);
+
+            // 主曲线
+            const curve = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            curve.setAttribute("d", smoothD);
+            curve.setAttribute("stroke", "#4285f4");
+            curve.setAttribute("stroke-width", "2");
+            curve.setAttribute("fill", "none");
+            svg.appendChild(curve);
+
+            // Y轴
+            const axisY = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            axisY.setAttribute("x1", left - 5);
+            axisY.setAttribute("y1", top);
+            axisY.setAttribute("x2", left - 5);
+            axisY.setAttribute("y2", bottom);
+            axisY.setAttribute("class", "axis-line");
+            svg.appendChild(axisY);
+
+            // Y轴刻度（5个）
+            for (let i = 0; i <= 4; i++) {
+                const y = top + (bottom - top) * i / 4;
+                const val = maxVal - (range * i / 4);
+                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                text.setAttribute("x", left - 8);
+                text.setAttribute("y", y + 3);
+                text.setAttribute("class", "axis-text");
+                text.setAttribute("text-anchor", "end");
+                text.textContent = formatValue(val);
+                svg.appendChild(text);
+                const grid = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                grid.setAttribute("x1", left);
+                grid.setAttribute("y1", y);
+                grid.setAttribute("x2", right);
+                grid.setAttribute("y2", y);
+                grid.setAttribute("stroke", "#eee");
+                grid.setAttribute("stroke-width", "0.5");
+                svg.appendChild(grid);
+            }
+
+            // X轴
+            const axisX = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            axisX.setAttribute("x1", left);
+            axisX.setAttribute("y1", bottom);
+            axisX.setAttribute("x2", right);
+            axisX.setAttribute("y2", bottom);
+            axisX.setAttribute("class", "axis-line");
+            svg.appendChild(axisX);
+
+            // X轴分钟刻度（每12个点显示 -1m, -2m...）
+            const minuteStep = 12;
+            const totalPoints = values.length;
+            for (let i = 0; i <= Math.floor((totalPoints - 1) / 12); i++) {
+                const pointIndex = totalPoints - 1 - i * minuteStep;
+                if (pointIndex < 0) break;
+                const x = left + pointIndex * stepX;
+                const minuteLabel = -i;
+                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                text.setAttribute("x", x);
+                text.setAttribute("y", bottom + 15);
+                text.setAttribute("class", "axis-text");
+                text.setAttribute("text-anchor", "middle");
+                text.textContent = `${minuteLabel}m`;
+                svg.appendChild(text);
+            }
+        }
+
+        // ==================== 更新K线图 ====================
+        function updateCandleChart() {
+            const allData = game.candleData[game.currentCode];
+            if (!allData || allData.length === 0) return;
+            const data = game.useShortCandle ? allData.slice(-game.shortCandleCount) : allData;
+
+            candlesEl.innerHTML = "";
+
+            const leftMargin = 40;
+            const rightMargin = 15;
+            const topMargin = 15;
+            const bottomMargin = 25;
+            const innerWidth = 380 - leftMargin - rightMargin;
+            const innerHeight = 220 - topMargin - bottomMargin;
+
+            let maxPrice = Math.max(...data.map(d => d.high));
+            let minPrice = Math.min(...data.map(d => d.low));
+            const padding = (maxPrice - minPrice) * 0.05 || 1;
+            maxPrice += padding;
+            minPrice = Math.max(0, minPrice - padding);
+            const range = maxPrice - minPrice || 1;
+
+            const step = innerWidth / data.length;
+            const candleWidth = Math.max(step * 0.4, 2);
+
+            // 绘制Y轴
+            const yAxisX = leftMargin - 5;
+            const yAxisY1 = topMargin;
+            const yAxisY2 = topMargin + innerHeight;
+            const axisY = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            axisY.setAttribute("x1", yAxisX);
+            axisY.setAttribute("y1", yAxisY1);
+            axisY.setAttribute("x2", yAxisX);
+            axisY.setAttribute("y2", yAxisY2);
+            axisY.setAttribute("class", "axis-line");
+            candlesEl.appendChild(axisY);
+
+            // Y轴刻度
+            for (let i = 0; i <= 4; i++) {
+                const price = minPrice + (range * i) / 4;
+                const y = topMargin + innerHeight - (i / 4) * innerHeight;
+                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                text.setAttribute("x", leftMargin - 12);
+                text.setAttribute("y", y + 3);
+                text.setAttribute("class", "axis-text");
+                text.setAttribute("text-anchor", "end");
+                text.textContent = price.toFixed(2);
+                candlesEl.appendChild(text);
+                const grid = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                grid.setAttribute("x1", leftMargin);
+                grid.setAttribute("y1", y);
+                grid.setAttribute("x2", leftMargin + innerWidth);
+                grid.setAttribute("y2", y);
+                grid.setAttribute("stroke", "#eee");
+                grid.setAttribute("stroke-width", "0.5");
+                candlesEl.appendChild(grid);
+            }
+
+            // X轴
+            const xAxisX1 = leftMargin;
+            const xAxisX2 = leftMargin + innerWidth;
+            const xAxisY = topMargin + innerHeight + 2;
+            const axisX = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            axisX.setAttribute("x1", xAxisX1);
+            axisX.setAttribute("y1", xAxisY);
+            axisX.setAttribute("x2", xAxisX2);
+            axisX.setAttribute("y2", xAxisY);
+            axisX.setAttribute("class", "axis-line");
+            candlesEl.appendChild(axisX);
+
+            // X轴分钟序号（每12根显示一个数字）
+            const tickStep = 12;
+            for (let i = 0; i < data.length; i += tickStep) {
+                const x = leftMargin + i * step + step / 2;
+                const minuteIndex = Math.floor(i / 12) + 1;
+                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                text.setAttribute("x", x);
+                text.setAttribute("y", xAxisY + 12);
+                text.setAttribute("class", "axis-text");
+                text.setAttribute("text-anchor", "middle");
+                text.textContent = minuteIndex;
+                candlesEl.appendChild(text);
+            }
+
+            // 绘制每根K线
+            data.forEach((candle, i) => {
+                const x = leftMargin + i * step;
+                const openY = topMargin + innerHeight - ((candle.open - minPrice) / range) * innerHeight;
+                const closeY = topMargin + innerHeight - ((candle.close - minPrice) / range) * innerHeight;
+                const highY = topMargin + innerHeight - ((candle.high - minPrice) / range) * innerHeight;
+                const lowY = topMargin + innerHeight - ((candle.low - minPrice) / range) * innerHeight;
+
+                // 影线
+                const shadow = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                shadow.setAttribute("x1", x + candleWidth / 2);
+                shadow.setAttribute("y1", highY);
+                shadow.setAttribute("x2", x + candleWidth / 2);
+                shadow.setAttribute("y2", lowY);
+                shadow.setAttribute("class", "candle-shadow");
+                candlesEl.appendChild(shadow);
+
+                // 实体
+                const body = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                body.setAttribute("x", x);
+                body.setAttribute("y", Math.min(openY, closeY));
+                body.setAttribute("width", candleWidth);
+                body.setAttribute("height", Math.max(Math.abs(closeY - openY), 1));
+                body.setAttribute("class", candle.close >= candle.open ? "candle-up" : "candle-down");
+
+                body.setAttribute("data-time", candle.time);
+                body.setAttribute("data-open", candle.open.toFixed(2));
+                body.setAttribute("data-high", candle.high.toFixed(2));
+                body.setAttribute("data-low", candle.low.toFixed(2));
+                body.setAttribute("data-close", candle.close.toFixed(2));
+
+                // 悬浮提示
+                body.addEventListener("mouseenter", (e) => {
+                    const t = e.target;
+                    tooltipEl.innerHTML = `
+                        <div>${t.dataset.time}</div>
+                        <div>开:${t.dataset.open} 高:${t.dataset.high}</div>
+                        <div>低:${t.dataset.low} 收:${t.dataset.close}</div>
+                    `;
+                    tooltipEl.style.display = "block";
+                    tooltipEl.style.left = (e.pageX + 15) + "px";
+                    tooltipEl.style.top = (e.pageY - 40) + "px";
+                });
+                body.addEventListener("mouseleave", () => {
+                    tooltipEl.style.display = "none";
+                });
+
+                candlesEl.appendChild(body);
+            });
+
+            // 最新价格蓝色虚线
+            const currentStock = getCurrentStock();
+            if (currentStock) {
+                const currentPrice = currentStock.price;
+                const y = topMargin + innerHeight - ((currentPrice - minPrice) / range) * innerHeight;
+                if (y >= topMargin && y <= topMargin + innerHeight) {
+                    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                    line.setAttribute("x1", leftMargin);
+                    line.setAttribute("y1", y);
+                    line.setAttribute("x2", leftMargin + innerWidth);
+                    line.setAttribute("y2", y);
+                    line.setAttribute("class", "current-price-line");
+                    candlesEl.appendChild(line);
+
+                    const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    label.setAttribute("x", leftMargin + innerWidth - 5);
+                    label.setAttribute("y", y - 3);
+                    label.setAttribute("class", "current-price-label");
+                    label.setAttribute("text-anchor", "end");
+                    label.textContent = currentPrice.toFixed(2);
+                    candlesEl.appendChild(label);
+                }
+            }
+        }
+
+        // ==================== 更新交易页面顶部信息 ====================
+        function updateTradePage() {
+            const stock = getCurrentStock();
+            if (!stock) return;
+            tradeStockNameEl.textContent = stock.name;
+            tradeCurrentPriceEl.textContent = stock.price.toFixed(2);
+
+            // 涨跌幅基于上一根K线收盘价
+            const candles = game.candleData[game.currentCode];
+            let previousPrice = stock.basePrice;
+            if (candles && candles.length >= 2) {
+                previousPrice = candles[candles.length - 2].close;
+            }
+            const change = ((stock.price - previousPrice) / previousPrice * 100).toFixed(2);
+            tradeChangeEl.textContent = change + "%";
+            tradeChangeEl.style.color = change >= 0 ? "#00c48c" : "#ff5252";
+            tradeCurrentPriceEl.style.color = change >= 0 ? "#00c48c" : "#ff5252";
+            availableFundsEl.textContent = game.cash.toFixed(2);
+            updateCandleChart();
+            updateMarginInfo();
+        }
+
+        // ==================== 统一更新所有UI ====================
+        function updateAll() {
+            updateStockUI();
+            updateAsset();
+            updateTradePage();
+            drawProfitChart(game.profitHistory);
+            drawLine(posLine, game.posHistory);
+        }
+
+        // ==================== 房产功能 ====================
+        function renderProperties() {
+            let html = '';
+            properties.forEach(p => {
+                const owned = ownedProperties[p.id];
+                let statusHtml = '';
+                let actionsHtml = '';
+
+                if (owned) {
+                    if (owned.type === 'full') {
+                        statusHtml = `<div class="status-text">全款已购 | 租金: +${p.rent}/5分钟</div>`;
+                        actionsHtml = `<button class="btn" disabled>已拥有</button>`;
+                    } else {
+                        const overdue = owned.overdueCount || 0;
+                        const paid = owned.paidPeriods || 0;
+                        const remaining = p.periods - paid;
+                        const totalOwed = owned.totalOwed || (remaining * p.monthly);
+                        statusHtml = `
+                            <div class="status-text">
+                                分期中 (${paid}/${p.periods}) | 次供: ${p.monthly}/10分钟<br>
+                                租金: +${p.rent}/5分钟<br>
+                                逾期次数: <span class="overdue-badge">${overdue}</span><br>
+                                剩余欠款: ${totalOwed.toFixed(0)}
+                            </div>
+                        `;
+                        actionsHtml = `
+                            <button class="btn btn-warning" onclick="prepayProperty('${p.id}')">提前还款</button>
+                        `;
+                    }
+                } else {
+                    statusHtml = `<div class="status-text">未拥有</div>`;
+                    actionsHtml = `
+                        <button class="btn btn-primary" onclick="buyPropertyFull('${p.id}')">全款 ${p.price.toLocaleString()}</button>
+                        <button class="btn btn-success" onclick="buyPropertyInstallment('${p.id}')">首付 ${p.downPayment.toLocaleString()}</button>
+                    `;
+                }
+
+                html += `
+                    <div class="property-card">
+                        <div class="property-name">${p.name}</div>
+                        <div class="property-price">总价: ${p.price.toLocaleString()}</div>
+                        <div class="property-down">首付: ${p.downPayment.toLocaleString()} (次供${p.monthly}/10分钟×100期)</div>
+                        <div class="property-detail">出租收益: +${p.rent}/5分钟 | 逾期罚息: 5%/5分钟</div>
+                        ${statusHtml}
+                        <div class="property-buttons">
+                            ${actionsHtml}
+                        </div>
+                    </div>
+                `;
+            });
+            propertyContent.innerHTML = `<div class="property-cards">${html}</div>`;
+        }
+
+        // 全款购买
+        window.buyPropertyFull = function(id) {
+            const prop = properties.find(p => p.id === id);
+            if (!prop) return;
+            if (game.cash < prop.price) {
+                alert('现金不足');
+                return;
+            }
+            game.cash -= prop.price;
+            ownedProperties[id] = {
+                type: 'full',
+                lastRentCycle: gameCycle
+            };
+            renderProperties();
+            updateAsset();
+            alert(`全款购买${prop.name}成功！`);
+        };
+
+        // 首付购买
+        window.buyPropertyInstallment = function(id) {
+            const prop = properties.find(p => p.id === id);
+            if (!prop) return;
+            if (game.cash < prop.downPayment) {
+                alert('现金不足');
+                return;
+            }
+            game.cash -= prop.downPayment;
+            ownedProperties[id] = {
+                type: 'installment',
+                paidPeriods: 0,
+                overdueCount: 0,
+                totalOwed: prop.price - prop.downPayment,
+                lastPaymentCycle: gameCycle,
+                lastRentCycle: gameCycle,
+                nextPaymentCycle: gameCycle + 2,
+                nextRentCycle: gameCycle + 1
+            };
+            renderProperties();
+            updateAsset();
+            alert(`首付购买${prop.name}成功！开始分期。`);
+        };
+
+        // 提前还款
+        window.prepayProperty = function(id) {
+            const prop = properties.find(p => p.id === id);
+            const owned = ownedProperties[id];
+            if (!owned || owned.type !== 'installment') return;
+
+            const remaining = owned.totalOwed;
+            const totalPay = remaining * 1.1;
+            if (game.cash < totalPay) {
+                alert('现金不足');
+                return;
+            }
+            game.cash -= totalPay;
+            ownedProperties[id] = {
+                type: 'full',
+                lastRentCycle: gameCycle
+            };
+            renderProperties();
+            updateAsset();
+            alert(`提前还款成功！支付总额 ${totalPay.toFixed(2)}，房产转为全款。`);
+        };
+
+        // 房产状态更新（租金、次供、逾期、收回）
+        function updateProperties() {
+            gameCycle++;
+            for (let id in ownedProperties) {
+                const owned = ownedProperties[id];
+                const prop = properties.find(p => p.id === id);
+                if (!prop) continue;
+
+                // 租金收益（每周期）
+                if (gameCycle >= (owned.lastRentCycle + 1)) {
+                    game.cash += prop.rent;
+                    owned.lastRentCycle = gameCycle;
+                }
+
+                if (owned.type === 'installment') {
+                    // 检查次供（每2个周期）
+                    if (gameCycle >= (owned.nextPaymentCycle || 0)) {
+                        const monthly = prop.monthly;
+                        if (game.cash >= monthly) {
+                            game.cash -= monthly;
+                            owned.paidPeriods++;
+                            owned.totalOwed -= monthly;
+                            owned.overdueCount = 0;
+                            if (owned.paidPeriods >= prop.periods || owned.totalOwed <= 0) {
+                                ownedProperties[id] = {
+                                    type: 'full',
+                                    lastRentCycle: gameCycle
+                                };
+                            } else {
+                                owned.lastPaymentCycle = gameCycle;
+                                owned.nextPaymentCycle = gameCycle + 2;
+                            }
+                        } else {
+                            const penalty = monthly * 0.05;
+                            owned.totalOwed += penalty;
+                            owned.overdueCount = (owned.overdueCount || 0) + 1;
+                            owned.lastPaymentCycle = gameCycle;
+                            owned.nextPaymentCycle = gameCycle + 2;
+
+                            if (owned.overdueCount >= 3) {
+                                delete ownedProperties[id];
+                                alert(`由于连续逾期，${prop.name} 被收回！`);
+                            } else {
+                                alert(`次供不足，产生罚息 ${penalty.toFixed(2)}，当前逾期次数 ${owned.overdueCount}`);
+                            }
+                        }
+                    }
+                }
+            }
+            if (propertySubpage.style.display === 'block') {
+                renderProperties();
+            }
+        }
+
+        // ==================== 股票价格更新循环 ====================
+        const originalInterval = setInterval(() => {
+            game.stocks.forEach(s => {
+                const code = s.code;
+                const prevCandles = game.candleData[code];
+                const prevClose = prevCandles.length > 0 ? prevCandles[prevCandles.length - 1].close : s.price;
+
+                // 生成变化百分比：0.1% ~ 5%
+                const changePercent = (Math.random() * 4.9 + 0.1) / 100;
+                const direction = Math.random() > 0.5 ? 1 : -1;
+                const newPrice = prevClose * (1 + direction * changePercent);
+                const finalClose = Math.max(0.2, newPrice);
+
+                // 生成最高最低价
+                const high = Math.max(prevClose, finalClose) * (1 + Math.random() * 0.01);
+                const low = Math.min(prevClose, finalClose) * (1 - Math.random() * 0.01);
+
+                const newCandle = {
+                    time: new Date().toLocaleTimeString(),
+                    open: Number(prevClose.toFixed(2)),
+                    high: Number(high.toFixed(2)),
+                    low: Number(Math.max(0.2, low).toFixed(2)),
+                    close: Number(finalClose.toFixed(2))
+                };
+
+                s.price = newCandle.close;
+                game.candleData[code].push(newCandle);
+                if (game.candleData[code].length > game.maxCandleCount) {
+                    game.candleData[code].shift();
+                }
+            });
+
+            const curStock = getCurrentStock();
+            if (curStock) {
+                game.posHistory.push(curStock.price);
+                if (game.posHistory.length > 20) game.posHistory.shift();
+            }
+
+            let floatingPL = 0;
+            game.positions.forEach(p => {
+                const stock = game.stocks.find(s => s.code === p.code);
+                if (stock) {
+                    if (p.direction === "long") {
+                        floatingPL += (stock.price - p.openPrice) * p.quantity;
+                    } else {
+                        floatingPL += (p.openPrice - stock.price) * p.quantity;
+                    }
+                }
+            });
+            const totalAsset = game.cash + floatingPL;
+            game.profitHistory.push(totalAsset);
+            if (game.profitHistory.length > 20) game.profitHistory.shift();
+
+            // 更新一小时历史
+            hourlyProfitHistory.push(totalAsset);
+            if (hourlyProfitHistory.length > HOUR_CYCLES) {
+                hourlyProfitHistory.shift();
+            }
+
+            updateAll();
+            updateProperties();
+        }, 5000);
+
+        // ==================== 初始化 ====================
+        renderStockList();
+        updateAll();
+        renderTradeHistory();
+    })();
+</script>
+</body>
+</html>
