@@ -51,7 +51,7 @@
         }
         .price-row {
             display: flex;
-            align-items: baseline;
+            align-items: center;
             gap: 8px;
             margin-bottom: 8px;
         }
@@ -78,11 +78,8 @@
 
         /* 2分钟K线切换按钮（圆形） */
         .time-toggle {
-            position: absolute;
-            top: 70px;
-            right: 16px;
-            width: 32px;
-            height: 32px;
+            width: 28px;
+            height: 28px;
             border-radius: 50%;
             background: #f0f0f0;
             display: flex;
@@ -93,8 +90,8 @@
             color: #333;
             cursor: pointer;
             border: 1px solid #ddd;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            z-index: 30;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            flex-shrink: 0;
         }
         .time-toggle.active {
             background: #4285f4;
@@ -907,10 +904,9 @@
             <div class="price-row">
                 <span class="stock-name" id="trade-stock-name">星途科技</span>
                 <span class="current-price" id="trade-current-price" style="font-size:clamp(14px,4vw,18px);">868.88</span>
+                <div class="time-toggle" id="time-toggle">2m</div>
                 <span class="change" id="trade-change">-0.00%</span>
             </div>
-
-            <div class="time-toggle" id="time-toggle">2m</div>
         </div>
         <div class="chart-area" style="position:relative;">
             <div class="price-chart">
