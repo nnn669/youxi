@@ -1185,11 +1185,11 @@
         <div style="padding:12px 16px;">
             <div class="card">
                 <div class="card-title">存档管理</div>
+                <div id="save-msg" style="margin-bottom:12px;font-size:13px;color:#888;background:#f7f8fa;border-radius:8px;padding:10px 12px;min-height:36px;line-height:1.5;">正在读取存档信息…</div>
                 <button id="save-btn" class="btn btn-primary" style="width:100%;margin-bottom:10px;padding:12px;">💾 手动存档</button>
                 <button id="load-btn" class="btn btn-danger" style="width:100%;margin-bottom:10px;padding:12px;">📂 读取存档</button>
                 <button id="clear-save-btn" class="btn" style="width:100%;padding:12px;background:#fff3f3;color:#ff5252;border:1.5px solid #ff5252;font-weight:600;">🗑️ 清除存档</button>
-                <div id="save-msg" style="margin-top:10px;font-size:14px;color:#888;text-align:center;"></div>
-                <div style="margin-top:12px;font-size:12px;color:#aaa;text-align:center;">游戏每60秒自动存档一次</div>
+                <div style="margin-top:12px;font-size:12px;color:#aaa;text-align:center;">每60秒自动存档 · 关闭页面前建议手动存档</div>
             </div>
         </div>
     </div>
@@ -1470,6 +1470,7 @@
         let gameCycle = 0;             // 全局循环计数器（用于房产时间）
         let warehouse = [];
         let fundPositions = {};
+        let fundTickCounter = 0; // counts 3s ticks, settle every 20s (≈7 ticks)
         let charityTotal = 0;
         let vipAppleTimer = 0;
         let totalTradingVolume = 0;  // 累计买入交易额（不含杠杆）
@@ -4269,18 +4270,21 @@ ${stock.name} 股价将${type==='bull'?'上涨':'下跌'} ${impactPct}%
             alert('卖出 ' + name + ' x' + sellQty + '，获得 ¥' + fmtNum(earned));
         };
 
-        // ==================== 存档系统 ====================
+        // ==================== 存档系统（重新设计）====================
+        const SAVE_KEY = 'financeSave_v8';
+
+        // 收集所有需要保存的状态，完整保存不截断
         function getSaveData() {
-            // Cap profitHistory to last 200 points for save (prevent localStorage quota exceeded)
-            const profitHistorySave = game.profitHistory.slice(-200);
-            // Collect only IPO stocks (base stocks are static)
             const ipoStocks = game.stocks.filter(s => s.isIPO);
             const ipoCandles = {};
-            ipoStocks.forEach(s => { if (game.candleData[s.code]) ipoCandles[s.code] = game.candleData[s.code].slice(-20); });
-            return JSON.stringify({
+            ipoStocks.forEach(s => {
+                if (game.candleData[s.code]) ipoCandles[s.code] = game.candleData[s.code].slice(-30);
+            });
+            const saveObj = {
+                v: 8,
                 cash: game.cash,
                 positions: game.positions,
-                history: game.history.slice(-50),
+                history: game.history.slice(-200),
                 ownedProperties: ownedProperties,
                 loanBalance: loanBalance,
                 loanInterestTotal: loanInterestTotal,
@@ -4291,10 +4295,11 @@ ${stock.name} 股价将${type==='bull'?'上涨':'下跌'} ${impactPct}%
                 slOrders: slOrders,
                 limitOrders: limitOrders,
                 unlockedAchievements: unlockedAchievements,
+                gambleWinBig: gambleWinBig,
                 peakAsset: peakAsset,
                 peakTime: peakTime,
                 milestones: milestones,
-                ipoHistory: ipoHistory,
+                ipoHistory: ipoHistory.slice(-50),
                 ipoListedStocks: ipoListedStocks,
                 ipoStocks: ipoStocks,
                 ipoCandles: ipoCandles,
@@ -4302,85 +4307,180 @@ ${stock.name} 股价将${type==='bull'?'上涨':'下跌'} ${impactPct}%
                 ipoAppeared: ipoAppeared,
                 totalTradingVolume: totalTradingVolume,
                 totalCommissionPaid: totalCommissionPaid,
-                newsHistory: newsHistory.slice(0, 20),
+                newsHistory: (typeof newsHistory !== 'undefined') ? newsHistory.slice(0, 30) : [],
                 gambleStones: gambleStones,
-                profitHistory: profitHistorySave,
-                timestamp: Date.now()
-            });
+                profitHistory: game.profitHistory.slice(-300),
+                stockPrices: Object.fromEntries(game.stocks.map(s => [s.code, s.price])),
+                shareholderState: shareholderState,
+                stockFloatShares: stockFloatShares,
+                timestamp: Date.now(),
+                saveTime: new Date().toLocaleString()
+            };
+            return JSON.stringify(saveObj);
         }
+
+        // 将存档数据还原到游戏状态
         function applySaveData(raw) {
             try {
                 const d = JSON.parse(raw);
+                if (!d || typeof d !== 'object') return false;
                 if (d.cash !== undefined) game.cash = d.cash;
-                if (d.positions) game.positions = d.positions;
-                if (d.history) game.history = d.history;
-                if (d.ownedProperties) Object.assign(ownedProperties, d.ownedProperties);
+                if (Array.isArray(d.positions)) game.positions = d.positions;
+                if (Array.isArray(d.history)) game.history = d.history;
+                if (d.ownedProperties && typeof d.ownedProperties === 'object') Object.assign(ownedProperties, d.ownedProperties);
                 if (d.loanBalance !== undefined) loanBalance = d.loanBalance;
                 if (d.loanInterestTotal !== undefined) loanInterestTotal = d.loanInterestTotal;
-                if (d.warehouse) warehouse = d.warehouse;
+                if (Array.isArray(d.warehouse)) warehouse = d.warehouse;
                 if (d.charityTotal !== undefined) charityTotal = d.charityTotal;
-                if (d.fundPositions) fundPositions = d.fundPositions;
-                if (d.redeemedCodes) redeemedCodes = d.redeemedCodes;
-                if (d.slOrders) slOrders = d.slOrders;
-                if (d.limitOrders) limitOrders = d.limitOrders;
-                if (d.unlockedAchievements) unlockedAchievements = d.unlockedAchievements;
+                if (d.fundPositions && typeof d.fundPositions === 'object') fundPositions = d.fundPositions;
+                if (d.redeemedCodes && typeof d.redeemedCodes === 'object') redeemedCodes = d.redeemedCodes;
+                if (Array.isArray(d.slOrders)) slOrders = d.slOrders;
+                if (Array.isArray(d.limitOrders)) limitOrders = d.limitOrders;
+                if (d.unlockedAchievements && typeof d.unlockedAchievements === 'object') unlockedAchievements = d.unlockedAchievements;
+                if (d.gambleWinBig !== undefined) gambleWinBig = d.gambleWinBig;
                 if (d.peakAsset !== undefined) peakAsset = d.peakAsset;
                 if (d.peakTime) peakTime = d.peakTime;
-                if (d.milestones) milestones = d.milestones;
-                if (d.ipoHistory) ipoHistory = d.ipoHistory;
-                if (d.ipoListedStocks) ipoListedStocks = d.ipoListedStocks;
+                if (Array.isArray(d.milestones)) milestones = d.milestones;
+                if (Array.isArray(d.ipoHistory)) ipoHistory = d.ipoHistory;
+                if (Array.isArray(d.ipoListedStocks)) ipoListedStocks = d.ipoListedStocks;
                 if (d.ipoFrozen !== undefined) ipoFrozen = d.ipoFrozen;
                 if (d.ipoAppeared !== undefined) ipoAppeared = d.ipoAppeared;
                 if (d.totalTradingVolume !== undefined) totalTradingVolume = d.totalTradingVolume;
                 if (d.totalCommissionPaid !== undefined) totalCommissionPaid = d.totalCommissionPaid;
-                if (d.newsHistory) { newsHistory = d.newsHistory; latestNews = newsHistory[0] || null; }
-                if (d.gambleStones) gambleStones = d.gambleStones;
-                if (d.profitHistory && d.profitHistory.length) game.profitHistory = d.profitHistory;
-                // Restore IPO stocks and their candle data
-                if (d.ipoStocks && d.ipoStocks.length) {
+                if (Array.isArray(d.newsHistory) && typeof newsHistory !== 'undefined') {
+                    newsHistory = d.newsHistory;
+                    if (typeof latestNews !== 'undefined') latestNews = newsHistory[0] || null;
+                }
+                if (d.gambleStones && typeof d.gambleStones === 'object') gambleStones = d.gambleStones;
+                if (Array.isArray(d.profitHistory) && d.profitHistory.length) game.profitHistory = d.profitHistory;
+                if (d.stockPrices && typeof d.stockPrices === 'object') {
+                    game.stocks.forEach(s => { if (d.stockPrices[s.code] !== undefined) s.price = d.stockPrices[s.code]; });
+                }
+                if (d.shareholderState && typeof d.shareholderState === 'object') {
+                    Object.assign(shareholderState, d.shareholderState);
+                }
+                if (d.stockFloatShares && typeof d.stockFloatShares === 'object') {
+                    Object.assign(stockFloatShares, d.stockFloatShares);
+                }
+                // 还原IPO股票及K线数据
+                if (Array.isArray(d.ipoStocks) && d.ipoStocks.length) {
                     d.ipoStocks.forEach(s => {
                         if (!game.stocks.find(x => x.code === s.code)) game.stocks.push(s);
                     });
-                    if (d.ipoCandles) {
+                    if (d.ipoCandles && typeof d.ipoCandles === 'object') {
                         Object.keys(d.ipoCandles).forEach(code => {
                             game.candleData[code] = d.ipoCandles[code];
                         });
                     }
                 }
                 return true;
-            } catch(e) { return false; }
+            } catch(e) {
+                console.error('存档解析失败:', e);
+                return false;
+            }
         }
+
+        // 更新存档页面状态提示
+        function setSaveMsg(text, color) {
+            const msg = document.getElementById('save-msg');
+            if (msg) { msg.textContent = text; msg.style.color = color || '#888'; }
+        }
+
+        // 刷新存档页面上的存档信息显示
+        function refreshSaveInfo() {
+            const msg = document.getElementById('save-msg');
+            if (!msg) return;
+            try {
+                const raw = localStorage.getItem(SAVE_KEY);
+                if (!raw) { msg.textContent = '暂无存档'; msg.style.color = '#aaa'; return; }
+                const d = JSON.parse(raw);
+                const timeStr = d.saveTime || '未知时间';
+                const assetStr = d.cash !== undefined ? '¥' + Math.round(d.cash).toLocaleString() : '';
+                msg.textContent = '📁 存档时间：' + timeStr + (assetStr ? '  现金：' + assetStr : '');
+                msg.style.color = '#888';
+            } catch(e) {
+                msg.textContent = '存档信息读取失败'; msg.style.color = '#ff5252';
+            }
+        }
+
+        // 手动存档按钮
         document.getElementById('save-btn').addEventListener('click', () => {
             try {
-                localStorage.setItem('financeSave_v7', getSaveData());
-                const msg = document.getElementById('save-msg');
-                if (msg) { msg.textContent = '✅ 存档成功 ' + new Date().toLocaleTimeString(); msg.style.color = '#00c48c'; }
-            } catch(e) { alert('存档失败：' + e.message); }
-        });
-        document.getElementById('load-btn').addEventListener('click', () => {
-            const msg = document.getElementById('save-msg');
-            const saved = localStorage.getItem('financeSave_v7');
-            if (!saved) { if(msg){msg.textContent='没有找到存档';msg.style.color='#ff5252';} return; }
-            if (!confirm('确定要读取存档？当前进度将丢失。')) return;
-            if (applySaveData(saved)) {
-                renderStockList();
-                updateAll(); renderPosition(); renderTradeHistory();
-                if(msg){msg.textContent='✅ 读档成功！';msg.style.color='#00c48c';}
-            } else {
-                if(msg){msg.textContent='存档文件损坏';msg.style.color='#ff5252';}
+                localStorage.setItem(SAVE_KEY, getSaveData());
+                setSaveMsg('✅ 存档成功  ' + new Date().toLocaleTimeString(), '#00c48c');
+            } catch(e) {
+                // 若空间不足，清除旧版本存档后重试
+                try {
+                    ['financeSave_v7','financeSave_v6','financeSave_v5'].forEach(k => localStorage.removeItem(k));
+                    localStorage.setItem(SAVE_KEY, getSaveData());
+                    setSaveMsg('✅ 存档成功  ' + new Date().toLocaleTimeString(), '#00c48c');
+                } catch(e2) {
+                    setSaveMsg('❌ 存档失败：' + e2.message, '#ff5252');
+                }
             }
         });
+
+        // 读取存档按钮
+        document.getElementById('load-btn').addEventListener('click', () => {
+            const raw = localStorage.getItem(SAVE_KEY);
+            if (!raw) { setSaveMsg('❌ 没有找到存档', '#ff5252'); return; }
+            let d;
+            try { d = JSON.parse(raw); } catch(e) { setSaveMsg('❌ 存档文件已损坏', '#ff5252'); return; }
+            const timeStr = d.saveTime || '未知时间';
+            if (!confirm('读取存档？\n\n存档时间：' + timeStr + '\n当前进度将被覆盖。')) return;
+            if (applySaveData(raw)) {
+                renderStockList();
+                updateShareholderState();
+                updateAll();
+                renderPosition();
+                renderTradeHistory();
+                setSaveMsg('✅ 读档成功！存档时间：' + timeStr, '#00c48c');
+            } else {
+                setSaveMsg('❌ 存档文件已损坏，无法读取', '#ff5252');
+            }
+        });
+
+        // 清除存档按钮
         document.getElementById('clear-save-btn').addEventListener('click', () => {
-            const msg = document.getElementById('save-msg');
             if (!confirm('⚠️ 确定要清除存档吗？\n\n此操作不可恢复，游戏将重置为初始状态！')) return;
             if (!confirm('再次确认：清除全部存档并重置游戏？')) return;
-            localStorage.removeItem('financeSave_v7');
-            if(msg){msg.textContent='🗑️ 存档已清除，刷新页面生效';msg.style.color='#ff5252';}
+            localStorage.removeItem(SAVE_KEY);
+            setSaveMsg('🗑️ 存档已清除，即将重置…', '#ff5252');
             setTimeout(() => location.reload(), 1500);
         });
+
+        // 进入存档页面时自动刷新存档信息
+        (function() {
+            const settingsCard = document.querySelector('.fn-card[data-function="settings"]');
+            if (settingsCard) {
+                settingsCard.addEventListener('click', () => setTimeout(refreshSaveInfo, 50));
+            }
+        })();
+
+        // 每60秒自动存档
         setInterval(() => {
-            try { localStorage.setItem('financeSave_v7', getSaveData()); } catch(e) {}
+            try {
+                localStorage.setItem(SAVE_KEY, getSaveData());
+            } catch(e) {
+                try {
+                    ['financeSave_v7','financeSave_v6','financeSave_v5'].forEach(k => localStorage.removeItem(k));
+                    localStorage.setItem(SAVE_KEY, getSaveData());
+                } catch(e2) { /* 空间不足时静默忽略 */ }
+            }
         }, 60000);
+
+        // 页面加载时自动读取上次存档
+        (function() {
+            const raw = localStorage.getItem(SAVE_KEY);
+            if (!raw) return;
+            try {
+                const d = JSON.parse(raw);
+                if (!d || d.cash === undefined) return;
+                applySaveData(raw);
+                renderStockList();
+                updateShareholderState();
+            } catch(e) { /* 存档损坏时跳过 */ }
+        })();
 
         // ==================== 富豪排名 ====================
         function renderRanking() {
@@ -4491,7 +4591,8 @@ ${stock.name} 股价将${type==='bull'?'上涨':'下跌'} ${impactPct}%
             el.innerHTML = FUNDS.map(f => {
                 const pos = fundPositions[f.id];
                 const vipBonus = ownedProperties['villa'] ? 0.03 : 0;
-                const currentVal = pos ? pos.invested * (1 + (f.rate + f.rate * vipBonus) * (pos.cycles || 0)) : 0;
+                // pos.invested is already compounded (updateFunds reinvests each cycle)
+                const currentVal = pos ? pos.invested : 0;
                 if (f.type === 'commercial') {
                     const sliderId = 'fund-slider-' + f.id;
                     const labelId = 'fund-label-' + f.id;
@@ -4502,7 +4603,7 @@ ${stock.name} 股价将${type==='bull'?'上涨':'下跌'} ${impactPct}%
                         + '<div style="font-weight:700;font-size:15px;margin-bottom:2px;">' + f.name + '</div>'
                         + '<div style="font-size:12px;color:#888;margin-bottom:6px;">' + f.desc + '</div>'
                         + '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:8px;">'
-                        + '<span>每周期收益：<span style="color:#00c48c;">+' + (f.rate*100).toFixed(1) + '%</span>' + (ownedProperties['villa'] ? '<span style="color:#ff9800;font-size:11px;"> (+贵宾3%加成)</span>' : '') + '</span>'
+                        + '<span>每20秒收益：<span style="color:#00c48c;">+' + (f.rate*100).toFixed(1) + '%</span>' + (ownedProperties['villa'] ? '<span style="color:#ff9800;font-size:11px;"> +贵宾3% = <span style="color:#ff5722;font-weight:700;">' + ((f.rate+0.03)*100).toFixed(1) + '%</span></span>' : '') + '</span>'
                         + (pos ? '<span style="color:#4285f4;">持有中：¥' + currentVal.toFixed(0) + '</span>' : '')
                         + '</div>'
                         + '<div style="margin-bottom:8px;">'
@@ -4566,8 +4667,8 @@ ${stock.name} 股价将${type==='bull'?'上涨':'下跌'} ${impactPct}%
         window.redeemFund = function(id) {
             const pos = fundPositions[id]; if (!pos) return;
             const f = FUNDS.find(x => x.id === id);
-            const vipBonusW = ownedProperties['villa'] ? 0.03 : 0;
-            const val = pos.invested * (1 + (f.rate + f.rate * vipBonusW) * (pos.cycles || 0));
+            // pos.invested already includes all compounded returns
+            const val = pos.invested;
             game.cash += val; delete fundPositions[id];
             updateAsset(); renderFund();
             alert('赎回成功！获得 ¥' + val.toFixed(2));
@@ -4591,9 +4692,31 @@ ${stock.name} 股价将${type==='bull'?'上涨':'下跌'} ${impactPct}%
             alert('❤️ 感谢捐款 ¥' + fmtNum(amount) + '！累计 ¥' + fmtNum(charityTotal));
         };
         function updateFunds() {
+            fundTickCounter++;
+            // Settle every 7 ticks ≈ 21 seconds (~20s)
+            if (fundTickCounter % 7 !== 0) return;
+            let totalPayout = 0;
             Object.keys(fundPositions).forEach(id => {
+                const pos = fundPositions[id];
+                if (!pos || pos.invested <= 0) return;
+                const f = FUNDS.find(x => x.id === id);
+                if (!f || f.type !== 'commercial' || f.rate <= 0) return;
+                const vipBonus = ownedProperties['villa'] ? 0.03 : 0;
+                // Payout = invested × (rate + vipBonus) each cycle
+                const payout = pos.invested * (f.rate + vipBonus);
+                pos.invested += payout; // reinvest: compound growth
+                totalPayout += payout;
                 fundPositions[id].cycles = (fundPositions[id].cycles || 0) + 1;
             });
+            if (totalPayout > 0) {
+                // Payout already reinvested; update asset display
+                updateAsset();
+                // Refresh fund page if open
+                const fundEl = document.getElementById('fund-content');
+                if (fundEl && fundEl.closest('.sub-page') && fundEl.closest('.sub-page').style.display !== 'none') {
+                    renderFund();
+                }
+            }
         }
 
         // ==================== 贵宾服务 ====================
