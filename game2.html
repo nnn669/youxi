@@ -935,7 +935,7 @@
                     <div class="available-funds">可用资金: <span id="available-funds">10000.00</span></div>
                     <div class="available-funds" style="margin-top:2px;">持有: <span id="spot-holding">0</span> 股 &nbsp;|&nbsp; 均价: <span id="spot-avg-price">--</span></div>
                     <div class="quantity-row" style="margin-top:8px;">
-                        <div class="input-card" style="flex:1;"><input type="number" class="quantity-input" id="quantity-input" value="1" min="1" placeholder="股数"></div>
+                        <div class="input-card" style="flex:1;"><input type="number" class="quantity-input" id="quantity-input" value="1" min="1" inputmode="numeric" pattern="[0-9]*" placeholder="股数" oninput="this.value=this.value.replace(/[^0-9]/g,'');if(this.value<1||this.value==='')this.value=1;"></div>
                     </div>
                     <div class="quick-buttons">
                         <button class="quick-btn" data-percent="25">25%</button>
@@ -957,7 +957,7 @@
                     <input type="number" id="lmt-price" placeholder="点击自动填入当前价" readonly style="width:100%;padding:10px;border-radius:8px;border:2px solid #4285f4;background:#f0f4ff;font-size:clamp(13px,3.5vw,15px);outline:none;margin-bottom:10px;cursor:pointer;-webkit-user-select:none;user-select:none;">
                     <div style="font-size:clamp(11px,2.8vw,13px);color:#888;margin-bottom:4px;">数量</div>
                     <div class="quantity-row" style="margin-bottom:6px;">
-                        <div class="input-card" style="flex:1;"><input type="number" id="lmt-qty" value="1" min="1" class="quantity-input"></div>
+                        <div class="input-card" style="flex:1;"><input type="number" id="lmt-qty" value="1" min="1" class="quantity-input" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'');if(this.value<1||this.value==='')this.value=1;"></div>
                     </div>
                     <div class="quick-buttons" style="margin-bottom:10px;">
                         <button class="quick-btn lmt-pct" data-pct="25" data-percent="25">25%</button>
@@ -981,7 +981,7 @@
                         <button class="dir-btn" id="fut-short">做空合约</button>
                     </div>
                     <div class="quantity-row" style="margin-top:8px;">
-                        <div class="input-card" style="flex:3;"><input type="number" class="quantity-input" id="fut-qty" value="1" min="1"></div>
+                        <div class="input-card" style="flex:3;"><input type="number" class="quantity-input" id="fut-qty" value="1" min="1" inputmode="numeric" pattern="[0-9]*" oninput="this.value=this.value.replace(/[^0-9]/g,'');if(this.value<1||this.value==='')this.value=1;"></div>
                         <div class="leverage-card" style="flex:1;">
                             <div id="fut-lev-btn" class="leverage-btn">1x</div>
                             <div class="leverage-label">杠杆</div>
@@ -2014,9 +2014,9 @@
             const totalAsset = game.cash + floatingPL;
 
             // 更新资产卡片
-            totalAssetEl.textContent = fmtAsset(totalAsset);
-            positionProfitEl.textContent = (floatingPL >= 0 ? '+' : '') + fmtAsset(floatingPL);
-            availableBalanceEl.textContent = fmtAsset(game.cash);
+            totalAssetEl.textContent = fmtNum(totalAsset);
+            positionProfitEl.textContent = (floatingPL >= 0 ? '+' : '') + fmtNum(floatingPL);
+            availableBalanceEl.textContent = fmtNum(game.cash);
 
             // 计算当时盈亏（一小时）
             // 根据正负设置颜色
@@ -2024,7 +2024,7 @@
             availableBalanceEl.className = 'asset-amount ' + (game.cash >= 0 ? 'up' : 'down');
 
             // 更新交易页面可用资金
-            availableFundsEl.textContent = fmtAsset(game.cash);
+            availableFundsEl.textContent = fmtNum(game.cash);
 
             checkLiquidation();
             updateCommissionBadge();
@@ -2055,8 +2055,10 @@
                     const liqPrice = p.direction === "long"
                         ? p.openPrice * (1 - 1 / p.leverage)
                         : p.openPrice * (1 + 1 / p.leverage);
+                    const marginAmt = p.margin != null ? p.margin : (p.quantity * p.openPrice / p.leverage);
+                    const marginPct = p.leverage > 1 ? (1 / p.leverage * 100).toFixed(0) + '%' : '100%';
                     liqHtml = '<div class="history-row" style="margin-top:2px;"><div style="color:#ff9800;">爆仓价：' + liqPrice.toFixed(2) + '</div>'
-                        + (p.leverage > 1 ? '<div style="color:#888;">杠杆：' + p.leverage + 'x</div>' : '') + '</div>';
+                        + '<div style="color:#888;">' + (p.leverage > 1 ? '杠杆：' + p.leverage + 'x&nbsp;·&nbsp;' : '') + '<span style="color:#4285f4;font-weight:600;">保证金 ' + marginPct + '（¥' + fmtNum(marginAmt) + '）</span></div></div>';
                 }
                 html += '<div class="history-item" data-position-id="' + p.id + '">'
                     + '<div class="history-row"><div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px;"><span style="font-weight:700;">' + stock.name + '</span><span style="color:' + dirColor + ';font-weight:600;margin-left:2px;">' + dirText + '</span>' + tag + '</div><div style="color:#888;">x' + fmtNum(p.quantity) + '</div></div>'
@@ -2136,11 +2138,6 @@
                 d += ` L${x},${y}`;
             }
             path.setAttribute("d", d);
-        }
-
-        // ==================== 数值格式化（万/亿） ====================
-        function formatValue(value) {
-            return fmtNum(value);
         }
 
         // ==================== 绘制收益趋势图（平滑曲线+点阵） ====================
@@ -2252,7 +2249,7 @@
                 text.setAttribute("y", y + 3);
                 text.setAttribute("class", "axis-text");
                 text.setAttribute("text-anchor", "end");
-                text.textContent = formatValue(val);
+                text.textContent = fmtNum(val);
                 svg.appendChild(text);
                 const grid = document.createElementNS("http://www.w3.org/2000/svg", "line");
                 grid.setAttribute("x1", left);
@@ -2287,22 +2284,15 @@
             const ta = game.cash + fl;
             game.profitHistory.push(ta);
         }
-        function fmtAsset(v) {
-            const abs = Math.abs(v);
-            const sign = v < 0 ? '-' : '';
-            if (abs >= 1e8) return sign + (abs/1e8).toFixed(4) + '亿';
-            if (abs >= 1e4) return sign + (abs/1e4).toFixed(2) + '万';
-            return v.toFixed(2);
-        }
-        // Universal number formatter (for display throughout the game)
-        function fmtNum(v, isInt) {
+        // ==================== 数值格式化（万/亿，保留1位小数） ====================
+        // 全局唯一格式化函数：≥1亿显示亿，≥1万显示万，其余保留2位小数，均保留1位小数单位部分
+        function fmtNum(v) {
             if (v === null || v === undefined || isNaN(v)) return '0';
             const abs = Math.abs(v);
             const sign = v < 0 ? '-' : '';
-            if (abs >= 1e8) return sign + (abs/1e8).toFixed(2) + '亿';
-            if (abs >= 1e4) return sign + (abs/1e4).toFixed(2) + '万';
-            if (isInt || Number.isInteger(v)) return String(Math.round(v));
-            return v.toFixed(2);
+            if (abs >= 1e8) return sign + (abs / 1e8).toFixed(1) + '亿';
+            if (abs >= 1e4) return sign + (abs / 1e4).toFixed(1) + '万';
+            return (Math.round(v * 100) / 100).toFixed(2);
         }
 
         // ==================== 手续费系统 ====================
@@ -2522,7 +2512,7 @@
             tradeChangeEl.textContent = change + "%";
             tradeChangeEl.style.color = change >= 0 ? "#00c48c" : "#ff5252";
             tradeCurrentPriceEl.style.color = change >= 0 ? "#00c48c" : "#ff5252";
-            availableFundsEl.textContent = fmtAsset(game.cash);
+            availableFundsEl.textContent = fmtNum(game.cash);
             updateCandleChart();
             updateMarginInfo();
         }
@@ -2954,6 +2944,10 @@
                     const newStock = { code: ipo.code, name: ipo.name, desc: 'IPO上市', price: ipo.issuePrice, basePrice: ipo.issuePrice, isIPO: true };
                     game.stocks.push(newStock);
                     game.candleData[ipo.code] = generateInitialCandles(ipo.issuePrice, ipo.code);
+                    // 初始化股东状态与流通股（默认流通股=总发行量，至少10万股）
+                    const ipoFloat = Math.max(ipo.totalShares * 10, 100000);
+                    stockFloatShares[ipo.code] = ipoFloat;
+                    shareholderState[ipo.code] = { tier: null, pct: 0, qty: 0, lastDividend: 0, lastEvent: 0, dividendTotal: 0, eventCooldown: 0, issueCooldown: 0 };
                     // Add position as long spot
                     game.positions.push({
                         id: 'ipo_' + Date.now(),
@@ -3838,10 +3832,11 @@
         }
 
         function updateShareholderState() {
-            const baseCodes = ['X005','K003','J002','X001','R004'];
+            // 包含所有股票（含IPO上市股票）
+            const allCodes = game.stocks.map(s => s.code);
             let highestTier = null;
             let topDesc = '';
-            baseCodes.forEach(code => {
+            allCodes.forEach(code => {
                 const stock = game.stocks.find(s => s.code === code);
                 if (!stock) return;
                 const { tier, pct, qty } = getShareholderTier(code);
@@ -3921,7 +3916,7 @@
             const bar = document.getElementById('insider-tip-bar');
             if (bar) {
                 bar.style.display = 'block';
-                bar.textContent = '🔒 ' + stock.name + ' ' + tip + '  （内幕消息·仅散户可见）';
+                bar.textContent = '🔒 ' + stock.name + ' ' + tip;
                 bar.style.color = bullish ? '#00c48c' : '#ff7070';
                 setTimeout(() => { if (bar) bar.style.display = 'none'; }, 18000);
             }
@@ -3931,7 +3926,7 @@
             // Called every 5 sec (from main interval or dedicated tick)
             const now = Date.now();
 
-            ['X005','K003','J002','X001','R004'].forEach(code => {
+            game.stocks.map(s => s.code).forEach(code => {
                 const st = shareholderState[code];
                 if (!st) return;
                 const { tier, pct, qty } = getShareholderTier(code);
@@ -3945,7 +3940,7 @@
                     if (!st.lastDividend) st.lastDividend = now;
                     if (now - st.lastDividend >= 180000) { // 3 min
                         const holdingValue = qty * stock.price;
-                        const dividend = parseFloat((holdingValue * pct * 0.002).toFixed(2)); // 0.2% of holding value × ratio
+                        const dividend = parseFloat((holdingValue * pct * 0.001).toFixed(2)); // 0.1% of holding value × ratio (降低50%)
                         game.cash += dividend;
                         st.dividendTotal = (st.dividendTotal || 0) + dividend;
                         st.lastDividend = now;
@@ -3963,11 +3958,12 @@
             const el = document.getElementById('shareholder-content');
             if (!el) return;
             updateShareholderState(); // always refresh before rendering
-            const baseCodes = ['X005','K003','J002','X001','R004'];
+            // 渲染所有股票（含IPO上市股票）
+            const allCodes = game.stocks.map(s => s.code);
             let html = '';
             let hasAny = false;
 
-            baseCodes.forEach(code => {
+            allCodes.forEach(code => {
                 const stock = game.stocks.find(s => s.code === code);
                 if (!stock) return;
                 const { tier, pct, qty, float } = getShareholderTier(code);
@@ -4046,8 +4042,8 @@
                         <span style="font-size:clamp(11px,3vw,13px);color:#555;">发布市场事件（利好 / 利空）</span>
                     </div>
                     <div style="display:flex;gap:6px;margin-bottom:6px;">
-                        <button onclick="window.shEvent('${code}','bull')" class="btn btn-primary" style="flex:1;padding:8px;font-size:12px;">📈 发布利好</button>
-                        <button onclick="window.shEvent('${code}','bear')" class="btn btn-danger" style="flex:1;padding:8px;font-size:12px;">📉 发布利空</button>
+                        <button onclick="window.shEvent('${code}','bull')" class="btn btn-primary" style="flex:1;padding:8px;font-size:12px;">📈 股价涨10%</button>
+                        <button onclick="window.shEvent('${code}','bear')" class="btn btn-danger" style="flex:1;padding:8px;font-size:12px;">📉 股价跌10%</button>
                     </div>`;
                 }
 
@@ -4070,7 +4066,7 @@
                 html = `<div style="text-align:center;padding:30px 16px;">
                     <div style="font-size:48px;margin-bottom:12px;">🏛️</div>
                     <div style="font-weight:700;font-size:16px;color:#333;margin-bottom:8px;">暂无股东资格</div>
-                    <div style="font-size:13px;color:#999;line-height:1.6;">买入粮油/电力/稀土/石油/科创任意股票即可成为股东，持股比例越高特权越多</div>
+                    <div style="font-size:13px;color:#999;line-height:1.6;">买入任意股票即可成为股东，持股比例越高特权越多</div>
                     <div style="margin-top:16px;font-size:12px;color:#bbb;">散户(≤10%) → 机构(10-30%) → 大股东(30-50%) → 控股股东(>50%)</div>
                 </div>`;
             }
@@ -4084,25 +4080,22 @@
             const { tier } = getShareholderTier(code);
             const tierIdx = SH_TIERS.findIndex(t => t.id === tier.id);
             if (tierIdx < 2) { alert('需要大股东资格'); return; }
-            const impactPct = 10;
+            // 检查冷却
+            if (st.eventCooldown && Date.now() < st.eventCooldown) {
+                const remaining = Math.ceil((st.eventCooldown - Date.now()) / 1000);
+                alert(`冷却中，还需等待 ${remaining} 秒`); return;
+            }
             const impact = type === 'bull' ? 0.10 : -0.10;
             const newPrice = parseFloat((stock.price * (1 + impact)).toFixed(2));
-            const label = type === 'bull' ? '利好' : '利空';
-            if (!confirm(`发布${label}公告
-
-${stock.name} 股价将${type==='bull'?'上涨':'下跌'} ${impactPct}%
-当前价 ¥${stock.price.toFixed(2)} → ¥${newPrice.toFixed(2)}
-
-10秒后生效，3分钟冷却`)) return;
-            const ev = { tag: type, label: '大股东事件', text: `【${stock.name}】大股东发布${label}公告，股价${type==='bull'?'上涨':'下跌'}${impactPct}%`, time: new Date().toLocaleTimeString(), impact, code, pending: true };
+            // 立即生效
+            stock.price = Math.max(0.5, newPrice);
+            // 3分钟冷却
+            st.eventCooldown = Date.now() + 180000;
+            const label = type === 'bull' ? '股价涨10%' : '股价跌10%';
+            const ev = { tag: type, label: '大股东操盘', text: `【${stock.name}】大股东操盘${label}，当前股价 ¥${stock.price.toFixed(2)}`, time: new Date().toLocaleTimeString(), impact, code };
             newsHistory.unshift(ev); if(newsHistory.length>30) newsHistory.pop(); latestNews=ev;
             fireDanmu(ev.text, type);
-            if (typeof renderNewsPage === 'function' && document.getElementById('news-subpage')?.style.display !== 'none') renderNewsPage();
-            setTimeout(() => {
-                stock.price = Math.max(0.5, stock.price * (1 + impact));
-                ev.pending = false;
-                updateAll();
-            }, 10000);
+            updateAll();
             renderShareholderPage();
         };
 
@@ -4119,7 +4112,7 @@ ${stock.name} 股价将${type==='bull'?'上涨':'下跌'} ${impactPct}%
 当前价 ¥${stock.price.toFixed(2)} → ¥${newPrice.toFixed(2)}
 
 5分钟冷却`)) return;
-            stockFloatShares[code] = (stockFloatShares[code] || STOCK_FLOAT_SHARES[code]) + 200000;
+            stockFloatShares[code] = (stockFloatShares[code] || STOCK_FLOAT_SHARES[code] || 1000000) + 200000;
             stock.price = Math.max(0.5, newPrice);
             const ev = { tag:'bear', label:'股票增发', text:`【${stock.name}】控股股东增发20万股，股价下跌15%`, time:new Date().toLocaleTimeString(), impact:-0.15 };
             newsHistory.unshift(ev); if(newsHistory.length>30) newsHistory.pop(); latestNews=ev;
@@ -4151,7 +4144,7 @@ ${stock.name} 股价将${type==='bull'?'上涨':'下跌'} ${impactPct}%
             if (typeof applyCommission === 'function') applyCommission(cost);
             const posId = 'sh_' + Date.now();
             game.positions.push({ id: posId, code, direction: 'long', quantity: issueQty, openPrice: issuePrice, leverage: 1 });
-            stockFloatShares[code] = (stockFloatShares[code] || STOCK_FLOAT_SHARES[code]) + issueQty;
+            stockFloatShares[code] = (stockFloatShares[code] || STOCK_FLOAT_SHARES[code] || 1000000) + issueQty;
             stock.price = Math.max(0.5, priceAfter);
             game.history.push({ name: stock.name, type: '买入', num: issueQty, price: issuePrice.toFixed(2), time: new Date().toLocaleTimeString(), leverage: 1, pl: null, fee: fee.toFixed(2) });
             const ev = { tag:'bull', label:'定向增持', text:`【${stock.name}】控股股东定向增持20万股，股价上涨15%`, time:new Date().toLocaleTimeString(), impact:0.15 };
@@ -4177,16 +4170,12 @@ ${stock.name} 股价将${type==='bull'?'上涨':'下跌'} ${impactPct}%
             const t = CEO_TWEETS[Math.floor(Math.random()*CEO_TWEETS.length)];
             const text = t.texts[Math.floor(Math.random()*t.texts.length)];
             const impact = t.bull?(0.05+Math.random()*0.08):-(0.05+Math.random()*0.08);
-            const ev = {tag:t.bull?'bull':'bear', label:'CEO推特', text:`${t.name}: "${text}"`, time:new Date().toLocaleTimeString(), impact, code:t.code, pending:true};
+            const s = game.stocks.find(x=>x.code===t.code);
+            if (s) s.price = Math.max(0.5, s.price*(1+impact));
+            const ev = {tag:t.bull?'bull':'bear', label:'CEO推特', text:`${t.name}: "${text}"`, time:new Date().toLocaleTimeString(), impact, code:t.code};
             newsHistory.unshift(ev); if(newsHistory.length>30) newsHistory.pop(); latestNews=ev;
             fireDanmu(ev.text, ev.tag);
             updateAll();
-            setTimeout(()=>{
-                const s = game.stocks.find(x=>x.code===t.code);
-                if (s) s.price = Math.max(0.5, s.price*(1+impact));
-                ev.pending=false;
-                    updateAll();
-            }, 10000);
         }
         const EARNINGS = [{code:'X001',name:'石油'},{code:'J002',name:'稀土'},{code:'R004',name:'科创'},{code:'K003',name:'电力'},{code:'X005',name:'粮油'}];
         let earningsCountdown = 120+Math.floor(Math.random()*120);
@@ -4195,16 +4184,12 @@ ${stock.name} 股价将${type==='bull'?'上涨':'下跌'} ${impactPct}%
             const beat = Math.random()>0.5;
             const impact = beat?(0.10+Math.random()*0.15):-(0.10+Math.random()*0.15);
             const text = beat ? `【财报】${r.name}Q业绩超预期！营收增长${(impact*100).toFixed(0)}%` : `【财报】${r.name}Q业绩不及预期，净利润下滑${Math.abs(impact*100).toFixed(0)}%`;
-            const ev = {tag:beat?'bull':'bear', label:'财报', text, time:new Date().toLocaleTimeString(), impact, code:r.code, pending:true};
+            const s = game.stocks.find(x=>x.code===r.code);
+            if (s) s.price = Math.max(0.5, s.price*(1+impact));
+            const ev = {tag:beat?'bull':'bear', label:'财报', text, time:new Date().toLocaleTimeString(), impact, code:r.code};
             newsHistory.unshift(ev); if(newsHistory.length>30) newsHistory.pop(); latestNews=ev;
             fireDanmu(text, beat?'bull':'bear');
             updateAll();
-            setTimeout(()=>{
-                const s = game.stocks.find(x=>x.code===r.code);
-                if (s) s.price = Math.max(0.5, s.price*(1+impact));
-                ev.pending=false;
-                    updateAll();
-            }, 10000);
         }
         setInterval(()=>{ if(Math.random()<0.25) triggerCEOTweet(); }, 30000);
 
