@@ -1,0 +1,60 @@
+name: build-apk
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 同步游戏资源到 APK assets
+        run: |
+          rm -rf android/app/src/main/assets/game
+          mkdir -p android/app/src/main/assets
+          cp -r game android/app/src/main/assets/game
+          find android/app/src/main/assets/game -type f | head -20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: 构建 Debug APK
+        run: gradle -p android assembleDebug --no-daemon --stacktrace
+
+      - name: 重命名产物
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/debug/app-debug.apk out/farm-pocket-v0.1.${{ github.run_number }}.apk
+          ls -lh out/
+
+      - name: 上传构建产物（Actions 页可下载）
+        uses: actions/upload-artifact@v4
+        with:
+          name: farm-pocket-apk
+          path: out/*.apk
+          if-no-files-found: error
+
+      - name: 发布 Release（提供直链下载页）
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v0.1.${{ github.run_number }}
+          name: 口袋小农场 v0.1.${{ github.run_number }}
+          body: |
+            自动构建的 Debug 签名 APK（可直接安装）。
+            - 包名：com.dpeng999.farmgame
+            - 支持：Android 8.0 及以上
+            - 安装：下载后点开安装（需允许“安装未知应用”）
+          files: out/*.apk
+          make_latest: true
